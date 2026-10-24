@@ -74,6 +74,78 @@ $env:ANDROID_SDK_ROOT = 'C:\dev\android-sdk'
 C:\dev\android-sdk\emulator\emulator.exe -avd TrackOneTest
 ```
 
+## Windows 版（PC アプリ）
+
+スマホ版と同じ機能（ログイン・地図・一覧・端末カード・リアルタイム更新・履歴再生・マイページ）を、Windows のパソコンで使えます。
+アイコンはスマホ版と同じオリジナルアイコン（`assets/icon/png/trackone.ico`）です。
+
+![Windows 版のホーム](../docs/screenshots/windows-home.png)
+
+![Windows 版の履歴再生](../docs/screenshots/windows-replay.png)
+
+### ビルドのしかた
+
+必要なもの: Flutter（上の表）と Visual Studio Build Tools 2022（「C++ によるデスクトップ開発」）。
+
+```powershell
+cd E:\TrackOne\app
+flutter pub get
+flutter build windows --release
+```
+
+できあがったアプリ: `app\build\windows\x64\runner\Release\TrackOneJapan.exe`
+
+`Release` フォルダの中身（`TrackOneJapan.exe`・`data` フォルダ・`*.dll`）がまとめて 1 つのアプリです。
+別の PC で使うときは、`Release` フォルダごとコピーして `TrackOneJapan.exe` を起動します（インストールは不要）。
+
+> **「Building with plugins requires symlink support」と表示されたとき**
+> Windows の「開発者モード」がオフだと、この警告が出てビルドできません。次のどちらかで解決します。
+> 1. 設定 → システム → 開発者向け → 「開発者モード」をオンにする
+> 2. 開発者モードをオンにしたくない場合は、`flutter pub get` のあとに次を実行してからビルドする
+>    （管理者権限は不要。パッケージを追加・更新したらもう一度実行）
+>    ```powershell
+>    powershell -ExecutionPolicy Bypass -File tool\windows_link_plugins.ps1
+>    ```
+
+### ログインのしかた
+
+| 使う PC | サーバー URL |
+|---|---|
+| サーバー（Traccar）が動いている PC そのもの | `http://localhost:8082` |
+| 別の PC（Tailscale 経由） | スマホと同じ `https://…ts.net` の URL |
+
+メールアドレスとパスワードはスマホ版と同じです。スマホ版と同じく、パスワードは保存せず、
+ログイン用のトークンだけを Windows の暗号化機能で保存し、次回からは自動でログインします
+（保存場所: `%APPDATA%\TrackOne Japan\TrackOne Japan`）。
+
+### スマホ版との違い
+
+| 項目 | Windows 版 |
+|---|---|
+| 画面の並び | ウィンドウの幅が広い（900 ピクセル以上）ときは、左に端末一覧、右に地図と端末カードを並べて表示。狭くすると、スマホと同じ「地図／一覧」の切り替えになります |
+| GPX 書き出し | 共有シートの代わりに「名前を付けて保存」の画面が開き、選んだ場所に保存します |
+| 一覧の更新 | 位置や状態はリアルタイムで自動更新。手動で更新したいときは、一覧をマウスで下に引っ張ります（広い画面のとき） |
+| 地図の操作 | マウスのホイールで拡大・縮小、ドラッグで移動 |
+| 起動画面 | なし（ウィンドウが開いてすぐログイン画面または地図） |
+
+### 動作確認テスト（テスト用 Traccar を使う）
+
+テスト PC の Traccar に実際にログインして、ホーム（一覧＋地図）と「テスト車」の履歴再生まで自動で操作します。
+ログイン情報はソースに書かず、実行時に渡します。
+
+```powershell
+cd E:\TrackOne\app
+$c = Get-Content ..\server\windows\test-admin.local.txt -Encoding UTF8
+$email = (($c | Select-String '^email:') -replace '^email:\s*', '').Trim()
+$pass  = (($c | Select-String '^password:') -replace '^password:\s*', '').Trim()
+flutter test integration_test -d windows `
+  --dart-define=TRACCAR_URL=http://localhost:8082 `
+  --dart-define=TRACCAR_EMAIL=$email --dart-define=TRACCAR_PASSWORD=$pass `
+  --dart-define=SCREENSHOT_DIR=$((Resolve-Path ..\docs\screenshots).Path)
+```
+
+`SCREENSHOT_DIR` を付けると、`docs/screenshots/windows-home.png` と `windows-replay.png` を撮り直します。
+
 ## アイコンの作り直し
 
 アイコン画像（`assets/icon/`）を差し替えたら:

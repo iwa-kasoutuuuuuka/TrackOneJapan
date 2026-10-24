@@ -137,7 +137,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'サーバー URL は、サーバーの Tailscale Funnel の URL です。\nパスワードはこのスマホに保存しません。',
+                    'サーバー URL は、サーバーの Tailscale Funnel の URL です。\nパスワードはこのアプリに保存しません。',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 11.5, color: AppColors.gray, height: 1.6),
                   ),

@@ -115,13 +115,18 @@ function Invoke-Psql {
         [string] $Database = 'postgres'
     )
     $psql = Join-Path (Get-PgBin $Cfg) 'psql.exe'
+    # SQL はファイル経由で渡す（PowerShell 5.1 は外部コマンドの引数内の " を壊すため）
+    $sqlFile = [System.IO.Path]::GetTempFileName()
+    [System.IO.File]::WriteAllText($sqlFile, $Sql, (New-Object System.Text.UTF8Encoding($false)))
     $env:PGPASSWORD = $Password
+    $env:PGCLIENTENCODING = 'UTF8'
     try {
-        $out = & $psql -h 127.0.0.1 -p $Cfg.PostgresPort -U $User -d $Database -v ON_ERROR_STOP=1 -t -A -c $Sql 2>&1
+        $out = & $psql -h 127.0.0.1 -p $Cfg.PostgresPort -U $User -d $Database -v ON_ERROR_STOP=1 -t -A -q -f $sqlFile 2>&1
         if ($LASTEXITCODE -ne 0) { throw "psql エラー: $out" }
         return ($out | Out-String).Trim()
     } finally {
-        Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+        Remove-Item Env:\PGPASSWORD, Env:\PGCLIENTENCODING -ErrorAction SilentlyContinue
+        Remove-Item $sqlFile -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -201,7 +206,7 @@ function Install-TOBranding {
 
     $branding = @{
         title          = 'TrackOne Japan'
-        description    = 'TrackOne Japan GPS Tracking'   # コマンドライン経由の文字化けを避けるため英語のみ
+        description    = 'TrackOne Japan - GPS 追跡システム'
         colorPrimary   = '#1F4A85'
         colorSecondary = '#E63946'
         logo           = '/trackone-logo.svg'

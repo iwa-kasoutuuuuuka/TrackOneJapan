@@ -33,6 +33,11 @@ param(
 . "$PSScriptRoot\common.ps1"
 $LogName = 'install'
 if ($DryRun) { $script:TONoFileLog = $true }
+trap {
+    Write-TOLog "インストール失敗: $($_.Exception.Message)" -Level ERROR -Name $LogName
+    Write-TOLog "場所: $($_.InvocationInfo.PositionMessage)" -Level ERROR -Name $LogName
+    exit 1
+}
 
 function Step {
     param([Parameter(Mandatory)] [string] $Title, [Parameter(Mandatory)] [scriptblock] $Action)
@@ -265,17 +270,17 @@ Write-TOLog '=== インストール完了 ===' -Level OK -Name $LogName
 $next = @"
 
 次にやること:
-  1. この PC のブラウザで http://localhost:$($cfg.WebPort) を開き、最初の管理者アカウントを登録
-  2. 設定 → サーバー で「登録（Registration）」のチェックを外して保存（他人が登録できないように）
-  3. 端末を追加（名前と IMEI）
+  1. デスクトップの「TrackOne 管理画面」（または http://localhost:$($cfg.WebPort)）を開き、最初のアカウントを登録
+     （最初のアカウントが管理者になります。2 人目以降は自由に登録できない設定が初期状態です）
+  2. 端末を追加（名前と IMEI）
 "@
 if (-not $TestMode) {
     $next += "`r`n" + @"
-  4. Tailscale にログインし、アプリ用の HTTPS 公開を有効化:
+  3. Tailscale にログインし、アプリ用の HTTPS 公開を有効化:
        & "`$env:ProgramFiles\Tailscale\tailscale.exe" up
        & "`$env:ProgramFiles\Tailscale\tailscale.exe" funnel --bg http://127.0.0.1:$($cfg.WebPort)
-  5. ルーターでポート転送: 外部ポート → この PC の $($cfg.Gt06Port)/TCP
-  6. 発信機に SMS で接続先を設定（docs/04_サーバー構築手順.md 参照）
+  4. ルーターでポート転送: 外部ポート → この PC の $($cfg.Gt06Port)/TCP
+  5. 発信機に SMS で接続先を設定（docs/04_サーバー構築手順.md 参照）
 "@
 }
 Write-Host $next

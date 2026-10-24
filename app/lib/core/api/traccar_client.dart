@@ -130,6 +130,34 @@ class TraccarClient {
     return (res.data as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // ---------- 履歴（段階2） ----------
+
+  Map<String, dynamic> _range(int deviceId, DateTime from, DateTime to) => {
+        'deviceId': deviceId,
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+      };
+
+  Future<List<dynamic>> _report(String name, int deviceId, DateTime from, DateTime to) async {
+    final res = await _call(() => _dio.get('/api/reports/$name', queryParameters: _range(deviceId, from, to)));
+    return res.data as List;
+  }
+
+  /// 期間内の位置（走行ルート）
+  Future<List<Position>> getRoute(int deviceId, DateTime from, DateTime to) async =>
+      (await _report('route', deviceId, from, to)).map((e) => Position.fromJson(e as Map<String, dynamic>)).toList();
+
+  Future<List<StopReport>> getStops(int deviceId, DateTime from, DateTime to) async =>
+      (await _report('stops', deviceId, from, to)).map((e) => StopReport.fromJson(e as Map<String, dynamic>)).toList();
+
+  Future<List<TripReport>> getTrips(int deviceId, DateTime from, DateTime to) async =>
+      (await _report('trips', deviceId, from, to)).map((e) => TripReport.fromJson(e as Map<String, dynamic>)).toList();
+
+  Future<SummaryReport?> getSummary(int deviceId, DateTime from, DateTime to) async {
+    final list = await _report('summary', deviceId, from, to);
+    return list.isEmpty ? null : SummaryReport.fromJson(list.first as Map<String, dynamic>);
+  }
+
   // ---------- リアルタイム ----------
 
   /// /api/socket に接続し、受信した JSON をそのまま流す

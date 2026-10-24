@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
+import '../replay/replay_page.dart';
 import 'device_detail_sheet.dart';
 import 'device_status.dart';
 
@@ -68,7 +69,12 @@ class DeviceCard extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
             child: Row(children: [
-              _MenuButton(icon: Icons.history, label: '履歴再生', color: AppColors.teal, onTap: () => _comingSoon(context, '履歴再生')),
+              _MenuButton(
+                icon: Icons.history,
+                label: '履歴再生',
+                color: AppColors.teal,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReplayPage(deviceId: d.id))),
+              ),
               _MenuButton(icon: Icons.article_outlined, label: '詳細', color: AppColors.navy, onTap: () => showDeviceDetail(context, ref, d.id)),
               _MenuButton(icon: Icons.share_outlined, label: '共有', color: const Color(0xFF3B82C4), onTap: () => _comingSoon(context, '位置共有')),
               _MenuButton(icon: Icons.terminal, label: 'コマンド', color: AppColors.red, onTap: () => _comingSoon(context, 'コマンド')),

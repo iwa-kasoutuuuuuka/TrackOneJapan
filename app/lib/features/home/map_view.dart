@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/map_type.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
+import '../../widgets/base_map.dart';
 import 'device_status.dart';
 
 class MapView extends ConsumerStatefulWidget {
@@ -109,22 +109,9 @@ class _MapViewState extends ConsumerState<MapView> {
             },
           ),
           children: [
-            TileLayer(
-              key: ValueKey(mapType),
-              urlTemplate: mapType.url,
-              maxNativeZoom: mapType.maxNativeZoom,
-              // 地理院タイルは 256px 前提のため、高精細画面では 1 段細かいタイルを縮小して表示
-              retinaMode: mapType.retina && RetinaMode.isHighDensity(context),
-              userAgentPackageName: 'io.github.iwakasoutuuuuuka.trackone_japan',
-            ),
+            baseTileLayer(context, mapType),
             MarkerLayer(markers: markers),
-            RichAttributionWidget(
-              alignment: AttributionAlignment.bottomLeft,
-              showFlutterMapAttribution: false,
-              attributions: [
-                TextSourceAttribution(mapType.attribution, onTap: () => launchUrl(Uri.parse(mapType.attributionUrl))),
-              ],
-            ),
+            baseAttribution(mapType),
           ],
         ),
         Positioned(

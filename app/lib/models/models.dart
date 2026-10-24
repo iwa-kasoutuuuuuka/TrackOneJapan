@@ -123,3 +123,60 @@ class TrackerEvent {
         attributes: Map<String, dynamic>.from((j['attributes'] ?? {}) as Map),
       );
 }
+
+// ---------- レポート（段階2：履歴再生） ----------
+
+/// 停車地点（/api/reports/stops）
+class StopReport {
+  StopReport({required this.startTime, required this.endTime, required this.duration, required this.latitude, required this.longitude, this.address});
+
+  final DateTime startTime;
+  final DateTime endTime;
+  final Duration duration;
+  final double latitude;
+  final double longitude;
+  final String? address;
+
+  factory StopReport.fromJson(Map<String, dynamic> j) => StopReport(
+        startTime: _date(j['startTime'])!,
+        endTime: _date(j['endTime'])!,
+        duration: Duration(milliseconds: ((j['duration'] ?? 0) as num).toInt()),
+        latitude: _double(j['latitude']),
+        longitude: _double(j['longitude']),
+        address: j['address'] as String?,
+      );
+}
+
+/// 走行（/api/reports/trips）
+class TripReport {
+  TripReport({required this.startTime, required this.endTime, required this.duration, required this.distance, required this.maxSpeed});
+
+  final DateTime startTime;
+  final DateTime endTime;
+  final Duration duration;
+  final double distance; // m
+  final double maxSpeed; // ノット
+
+  factory TripReport.fromJson(Map<String, dynamic> j) => TripReport(
+        startTime: _date(j['startTime'])!,
+        endTime: _date(j['endTime'])!,
+        duration: Duration(milliseconds: ((j['duration'] ?? 0) as num).toInt()),
+        distance: _double(j['distance']),
+        maxSpeed: _double(j['maxSpeed']),
+      );
+}
+
+/// 集計（/api/reports/summary）
+class SummaryReport {
+  SummaryReport({required this.distance, required this.maxSpeed, required this.averageSpeed});
+
+  final double distance; // m
+  final double maxSpeed; // ノット
+  final double averageSpeed; // ノット
+
+  factory SummaryReport.fromJson(Map<String, dynamic> j) => SummaryReport(
+        distance: _double(j['distance']),
+        maxSpeed: _double(j['maxSpeed']),
+        averageSpeed: _double(j['averageSpeed']),
+      );
+}

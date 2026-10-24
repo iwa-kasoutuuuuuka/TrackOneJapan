@@ -23,7 +23,10 @@ class TraccarClient {
   TraccarClient(String serverUrl)
       : baseUrl = normalizeServerUrl(serverUrl),
         _cookies = CookieJar() {
+    // 応答は文字列で受け取り、成功したときだけ JSON として読む。
+    // （Traccar のエラー応答は JSON として読めないことがあり、自動で読むと 401 などのエラーの種類が失われるため）
     _dio = Dio(BaseOptions(
+      responseType: ResponseType.plain,
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
@@ -36,6 +39,11 @@ class TraccarClient {
   final CookieJar _cookies;
   late final Dio _dio;
 
+  /// セッション（Cookie）が切れたときに呼ばれ、保存済みトークンでログインし直す。
+  /// true を返したら、失敗したリクエストを 1 回だけやり直す。
+  Future<bool> Function()? onSessionExpired;
+  Future<bool>? _refreshing; // 同時に何本 401 が来ても、ログインし直しは 1 回だけ
+
   /// 入力された URL を整える（末尾の / を除く、スキーム省略時は https）
   static String normalizeServerUrl(String input) {
     var url = input.trim();
@@ -47,27 +55,28 @@ class TraccarClient {
     return url;
   }
 
-  /// http:// は PC 内・LAN 内のテスト用だけ許可する
+  /// http:// は PC 内・LAN 内のテスト用だけ許可する（ホスト名ではなく IP アドレスで判定）
   static bool isAllowedUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.isEmpty) return false;
     if (uri.scheme == 'https') return true;
     if (uri.scheme != 'http') return false;
     final h = uri.host;
-    return h == 'localhost' ||
-        h == '127.0.0.1' ||
-        h.startsWith('192.168.') ||
-        h.startsWith('10.') ||
-        RegExp(r'^172\.(1[6-9]|2\d|3[01])\.').hasMatch(h);
+    if (h == 'localhost') return true;
+    final ip = InternetAddress.tryParse(h);
+    if (ip == null || ip.type != InternetAddressType.IPv4) return ip?.isLoopback ?? false;
+    final b = ip.rawAddress;
+    return b[0] == 127 || b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] >= 16 && b[1] <= 31);
   }
 
   // ---------- 認証 ----------
 
   Future<User> login(String email, String password) async {
-    final res = await _call(() => _dio.post('/api/session',
-        data: {'email': email, 'password': password},
-        options: Options(contentType: Headers.formUrlEncodedContentType)));
-    return User.fromJson(res.data as Map<String, dynamic>);
+    final res = await _call(
+        () => _dio.post('/api/session',
+            data: {'email': email, 'password': password}, options: Options(contentType: Headers.formUrlEncodedContentType)),
+        auth: _AuthKind.password);
+    return User.fromJson(_json(res) as Map<String, dynamic>);
   }
 
   /// 長期ログイン用トークンを発行（パスワードは保存しない）
@@ -80,12 +89,16 @@ class TraccarClient {
   }
 
   Future<User> loginWithToken(String token) async {
-    final res = await _call(() => _dio.get('/api/session', queryParameters: {'token': token}));
-    return User.fromJson(res.data as Map<String, dynamic>);
+    final res = await _call(() => _dio.get('/api/session', queryParameters: {'token': token}), auth: _AuthKind.token);
+    return User.fromJson(_json(res) as Map<String, dynamic>);
   }
 
   Future<void> logout({String? token}) async {
     if (token != null) {
+      // トークンの無効化にはログイン中のセッションが必要なので、切れていたら先につなぎ直す
+      try {
+        await loginWithToken(token);
+      } catch (_) {}
       try {
         await _dio.post('/api/session/token/revoke',
             data: {'token': token}, options: Options(contentType: Headers.formUrlEncodedContentType));
@@ -100,12 +113,12 @@ class TraccarClient {
 
   Future<List<Device>> getDevices() async {
     final res = await _call(() => _dio.get('/api/devices'));
-    return (res.data as List).map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<Position>> getPositions() async {
     final res = await _call(() => _dio.get('/api/positions'));
-    return (res.data as List).map((e) => Position.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => Position.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<String?> geocode(double lat, double lon) async {
@@ -127,7 +140,7 @@ class TraccarClient {
           'type': ['deviceMoving', 'deviceStopped'],
         },
         options: Options(listFormat: ListFormat.multi))); // type=a&type=b の形式
-    return (res.data as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   // ---------- 履歴（段階2） ----------
@@ -140,7 +153,7 @@ class TraccarClient {
 
   Future<List<dynamic>> _report(String name, int deviceId, DateTime from, DateTime to) async {
     final res = await _call(() => _dio.get('/api/reports/$name', queryParameters: _range(deviceId, from, to)));
-    return res.data as List;
+    return _json(res) as List;
   }
 
   /// 期間内の位置（走行ルート）
@@ -166,30 +179,30 @@ class TraccarClient {
     final res = await _call(() => _dio.get('/api/reports/events',
         queryParameters: {'deviceId': deviceIds, 'from': from.toUtc().toIso8601String(), 'to': to.toUtc().toIso8601String()},
         options: Options(listFormat: ListFormat.multi)));
-    return (res.data as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Position?> getPosition(int positionId) async {
     if (positionId == 0) return null;
     final res = await _call(() => _dio.get('/api/positions', queryParameters: {'id': positionId}));
-    final list = res.data as List;
+    final list = _json(res) as List;
     return list.isEmpty ? null : Position.fromJson(list.first as Map<String, dynamic>);
   }
 
   Future<List<Geofence>> getGeofences() async {
     final res = await _call(() => _dio.get('/api/geofences'));
-    return (res.data as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<NotificationConfig>> getNotifications() async {
     final res = await _call(() => _dio.get('/api/notifications'));
-    return (res.data as List).map((e) => NotificationConfig.fromJson(e as Map<String, dynamic>)).toList();
+    return (_json(res) as List).map((e) => NotificationConfig.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// サーバーで使える通知方法（web / mail / firebase など）
   Future<List<String>> getNotificators() async {
     final res = await _call(() => _dio.get('/api/notifications/notificators'));
-    return (res.data as List).map((e) => (e as Map<String, dynamic>)['type'] as String).toList();
+    return (_json(res) as List).map((e) => (e as Map<String, dynamic>)['type'] as String).toList();
   }
 
   /// Traccar が定義している警報の種類（「警報」の通知は、ここに列挙した種類しか届かない）
@@ -209,11 +222,12 @@ class TraccarClient {
           'notificators': notificators.join(','),
           'attributes': <String, dynamic>{if (type == 'alarm') 'alarms': allAlarmKeys.join(',')},
         }));
-    return NotificationConfig.fromJson(res.data as Map<String, dynamic>);
+    return NotificationConfig.fromJson(_json(res) as Map<String, dynamic>);
   }
 
   /// 「警報」の通知に、届ける警報の種類（全種類）を設定し直す
   Future<void> repairAlarmNotification(NotificationConfig c) async {
+    // サーバーから受け取った内容をそのまま送り返し、警報の種類だけを足す（他の項目を消さない）
     final body = c.toJson()..['attributes'] = {...c.attributes, 'alarms': allAlarmKeys.join(',')};
     await _call(() => _dio.put('/api/notifications/${c.id}', data: body));
   }
@@ -247,21 +261,57 @@ class TraccarClient {
 
   // ---------- 共通 ----------
 
-  Future<Response<dynamic>> _call(Future<Response<dynamic>> Function() request) async {
+  /// 成功した応答の本文を JSON として読む
+  static dynamic _json(Response<dynamic> res) {
+    final data = res.data;
+    if (data is! String) return data;
+    if (data.trim().isEmpty) return null;
+    try {
+      return jsonDecode(data);
+    } on FormatException {
+      throw ApiException('サーバーの応答を読み取れませんでした。サーバー URL が Traccar のものか確認してください');
+    }
+  }
+
+  /// リクエストを実行し、失敗をわかりやすいエラーにする。
+  /// ログイン以外で 401（セッション切れ）になったら、トークンでログインし直して 1 回だけやり直す。
+  Future<Response<dynamic>> _call(Future<Response<dynamic>> Function() request, {_AuthKind auth = _AuthKind.none}) async {
     try {
       return await request();
     } on DioException catch (e) {
-      final code = e.response?.statusCode;
-      if (code == 401) {
-        throw ApiException('メールアドレスまたはパスワードが違います', unauthorized: true);
+      if (e.response?.statusCode == 401 && auth == _AuthKind.none && await _refreshSession()) {
+        try {
+          return await request();
+        } on DioException catch (e2) {
+          throw _toApiException(e2, auth);
+        }
       }
-      if (code != null) {
-        throw ApiException('サーバーエラー（$code）');
-      }
-      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
-        throw ApiException('サーバーが応答しません。URL とネットワークを確認してください');
-      }
-      throw ApiException('サーバーに接続できません。URL とネットワークを確認してください');
+      throw _toApiException(e, auth);
     }
   }
+
+  Future<bool> _refreshSession() async {
+    final refresh = onSessionExpired;
+    if (refresh == null) return false;
+    final running = _refreshing ??= refresh().catchError((_) => false).whenComplete(() => _refreshing = null);
+    return running;
+  }
+
+  static ApiException _toApiException(DioException e, _AuthKind auth) {
+    final code = e.response?.statusCode;
+    if (code == 401) {
+      return ApiException(
+        auth == _AuthKind.password ? 'メールアドレスまたはパスワードが違います' : 'ログインの有効期限が切れました。もう一度ログインしてください',
+        unauthorized: true,
+      );
+    }
+    if (code != null) return ApiException('サーバーエラー（$code）');
+    if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+      return ApiException('サーバーが応答しません。URL とネットワークを確認してください');
+    }
+    return ApiException('サーバーに接続できません。URL とネットワークを確認してください');
+  }
 }
+
+/// 認証に関わるリクエストの種類（401 のときのメッセージとやり直しの判断に使う）
+enum _AuthKind { none, password, token }

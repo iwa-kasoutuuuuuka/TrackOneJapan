@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/event_labels.dart';
 import '../../core/state/alarms.dart';
+import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
 import '../../models/models.dart';
@@ -24,7 +25,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
   @override
   void initState() {
     super.initState();
-    _seenBefore = ref.read(alarmProvider).lastSeen;
+    _seenBefore = ref.read(alarmProvider).lastSeen ?? DateTime.now();
     // 開いたら既読にする（一覧の未読の印は、開いた時点のものを表示し続ける）
     Future.microtask(() => ref.read(alarmProvider.notifier).markAllRead());
   }
@@ -32,6 +33,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(alarmProvider);
+    ref.watch(clockProvider); // 「〇分前」の表示を 30 秒ごとに更新
     final settings = ref.watch(notificationSettingsProvider);
     final events = s.events.where((e) => _filter == null || describeEvent(e).category == _filter).toList();
     final usedCategories = {for (final e in s.events) describeEvent(e).category};
@@ -77,7 +79,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
           _Banner(
             text: 'リアルタイムでアラームを受け取る種類が設定されていません。',
             action: 'おすすめ設定にする',
-            onTap: () => ref.read(notificationSettingsProvider.notifier).enableRecommended(),
+            onTap: settings.working ? null : () => ref.read(notificationSettingsProvider.notifier).enableRecommended(),
           ),
         Expanded(
           child: RefreshIndicator(
@@ -172,7 +174,7 @@ class _Banner extends StatelessWidget {
   const _Banner({required this.text, required this.action, required this.onTap});
   final String text;
   final String action;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Container(

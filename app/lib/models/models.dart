@@ -212,17 +212,20 @@ class Geofence {
 
 /// Traccar の通知設定（どの種類のイベントを、どの方法で届けるか）
 class NotificationConfig {
-  NotificationConfig({required this.id, required this.type, required this.always, required this.notificators, this.attributes = const {}});
+  NotificationConfig({required this.id, required this.type, required this.always, required this.notificators, this.attributes = const {}, this.raw = const {}});
   final int id;
   final String type;
   final bool always;
   final String notificators; // "web,firebase" など
   final Map<String, dynamic> attributes;
 
+  /// サーバーから受け取ったそのままの内容（更新するときは、これを元にして他の項目を消さない）
+  final Map<String, dynamic> raw;
+
   /// 「警報」の通知で、届ける警報の種類が設定されていない（＝何も届かない）
   bool get missingAlarms => type == 'alarm' && (attributes['alarms'] as String?)?.isNotEmpty != true;
 
-  Map<String, dynamic> toJson() => {'id': id, 'type': type, 'always': always, 'notificators': notificators, 'attributes': attributes};
+  Map<String, dynamic> toJson() => {...raw, 'id': id, 'type': type, 'always': always, 'notificators': notificators, 'attributes': attributes};
 
   bool get hasWeb => notificators.split(',').map((s) => s.trim()).contains('web');
 
@@ -232,5 +235,6 @@ class NotificationConfig {
         always: (j['always'] ?? false) as bool,
         notificators: (j['notificators'] ?? '') as String,
         attributes: Map<String, dynamic>.from((j['attributes'] ?? {}) as Map),
+        raw: Map<String, dynamic>.from(j),
       );
 }

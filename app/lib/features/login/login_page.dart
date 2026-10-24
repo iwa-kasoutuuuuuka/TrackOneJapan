@@ -41,6 +41,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
+    if (_busy) return; // Enter キーの連打などで二重にログインしない
     if (!_form.currentState!.validate()) return;
     setState(() {
       _busy = true;

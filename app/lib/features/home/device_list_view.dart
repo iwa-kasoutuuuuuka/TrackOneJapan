@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/tracking.dart';
+import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
 import 'device_status.dart';
@@ -21,6 +22,7 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(trackingProvider);
+    ref.watch(clockProvider); // 経過時間の表示を 30 秒ごとに更新
     final notifier = ref.read(trackingProvider.notifier);
     final devices = s.sortedDevices.where((d) => _query.isEmpty || d.name.contains(_query) || d.uniqueId.contains(_query)).toList();
 

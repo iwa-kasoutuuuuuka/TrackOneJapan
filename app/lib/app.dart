@@ -57,7 +57,11 @@ class _AuthGate extends ConsumerWidget {
     final auth = ref.watch(authProvider);
     return auth.when(
       loading: () => const _Splash(),
-      error: (e, _) => _OfflineView(message: e.toString(), onRetry: () => ref.read(authProvider.notifier).retry()),
+      error: (e, _) => _OfflineView(
+        message: e.toString(),
+        onRetry: () => ref.read(authProvider.notifier).retry(),
+        onForget: () => ref.read(authProvider.notifier).forgetSavedLogin(),
+      ),
       data: (session) => session == null ? const LoginPage() : const HomePage(),
     );
   }
@@ -74,9 +78,10 @@ class _Splash extends StatelessWidget {
 }
 
 class _OfflineView extends StatelessWidget {
-  const _OfflineView({required this.message, required this.onRetry});
+  const _OfflineView({required this.message, required this.onRetry, required this.onForget});
   final String message;
   final VoidCallback onRetry;
+  final VoidCallback onForget;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -89,6 +94,9 @@ class _OfflineView extends StatelessWidget {
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 18),
               FilledButton(onPressed: onRetry, child: const Text('もう一度試す')),
+              const SizedBox(height: 8),
+              // サーバーの URL が変わった・使わなくなったときに、ログイン画面へ戻れるように
+              TextButton(onPressed: onForget, child: const Text('別のサーバー・アカウントでログイン')),
             ]),
           ),
         ),

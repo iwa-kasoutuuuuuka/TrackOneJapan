@@ -13,6 +13,7 @@ class PhoneNotifier {
 
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
+  Future<void>? _initFuture; // 同時に何度呼ばれても、初期化は 1 回だけ
 
   /// 通知をタップしたときに呼ばれる（引数はイベント ID）
   void Function(int eventId)? onTap;
@@ -24,8 +25,19 @@ class PhoneNotifier {
     importance: Importance.high,
   );
 
-  Future<void> init() async {
-    if (_ready || kIsWeb) return;
+  Future<void> init() => _initFuture ??= _init();
+
+  Future<void> _init() async {
+    if (kIsWeb) return;
+    try {
+      await _initPlugin();
+    } catch (e) {
+      // 通知が使えない環境でも、アプリ自体は動き続けるようにする
+      debugPrint('通知の初期化に失敗しました: $e');
+    }
+  }
+
+  Future<void> _initPlugin() async {
     await _plugin.initialize(
       settings: InitializationSettings(
         // オリジナルの通知アイコン（白一色のシルエット）
@@ -69,14 +81,28 @@ class PhoneNotifier {
   /// Android 13 以降は通知の許可が必要
   Future<bool> requestPermission() async {
     await init();
-    final granted = await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-    return granted ?? true;
+    if (!_ready) return false;
+    try {
+      final granted = await _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      return granted ?? true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> show({required int eventId, required String title, required String body}) async {
     await init();
+    if (!_ready) return;
+    try {
+      await _show(eventId, title, body);
+    } catch (e) {
+      debugPrint('通知を表示できませんでした: $e');
+    }
+  }
+
+  Future<void> _show(int eventId, String title, String body) async {
     await _plugin.show(
       id: eventId & 0x7fffffff,
       title: title,

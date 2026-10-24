@@ -116,7 +116,14 @@ void main() {
     // 6) 履歴再生（今日）: ルート・停車地点・走行距離などが読み込まれる
     await tester.tap(find.descendant(of: find.byType(DeviceCard), matching: find.text('履歴再生')));
     await pumpUntil(tester, find.byType(ReplayPage));
-    await pumpUntil(tester, find.textContaining(RegExp(r'^停車 [1-9]\d* 回')));
+    // テスト用の走行記録は特定の日にしかないので、今日に記録がなければ「昨日」を見る
+    final hasStops = find.textContaining(RegExp(r'^停車 [1-9]\d* 回'));
+    final noRecord = find.text('この日の走行記録はありません');
+    await pumpUntil(tester, find.byWidgetPredicate((_) => hasStops.evaluate().isNotEmpty || noRecord.evaluate().isNotEmpty));
+    if (noRecord.evaluate().isNotEmpty) {
+      await tester.tap(find.text('昨日'));
+      await pumpUntil(tester, hasStops);
+    }
     expect(find.text('この日の走行記録はありません'), findsNothing);
     expect(find.textContaining(RegExp(r'^\d+(\.\d+)? (km|m)$')), findsWidgets, reason: '走行距離');
     expect(find.text('走行時間'), findsOneWidget);

@@ -4,6 +4,9 @@ import '../../core/theme.dart';
 import '../../core/units.dart';
 import '../../models/models.dart';
 
+/// 最後の位置がこれより古ければ、「走行中」の表示をやめて停車中とみなす
+const staleMotionAfter = Duration(minutes: 5);
+
 /// 端末の状態（走行中・停車中・オフライン）と表示色
 class DeviceStatusInfo {
   DeviceStatusInfo(this.label, this.color, this.background);
@@ -19,10 +22,14 @@ class DeviceStatusInfo {
     if (!device.isOnline) {
       return DeviceStatusInfo('オフライン', AppColors.gray, const Color(0xFFECEEF2));
     }
-    if (position?.motion == true) {
+    // 止まると位置を送らなくなる発信機（GT06 系に多い）では、最後の位置が「走行中」のまま残る。
+    // 最後の位置から一定時間たっていたら、止まったものとみなす。
+    final fix = position?.fixTime;
+    final stale = fix != null && n.difference(fix) > staleMotionAfter;
+    if (position?.motion == true && !stale) {
       return DeviceStatusInfo('走行中 ${Units.speedKmh(position!.speed)}', AppColors.green, const Color(0xFFDDF5E6));
     }
-    final since = stoppedSince;
+    final since = stoppedSince ?? (position?.motion == true && stale ? fix : null);
     final label = since == null ? '停車中' : '停車中 ${Units.duration(n.difference(since))}';
     return DeviceStatusInfo(label, const Color(0xFFB86200), const Color(0xFFFFF1DB));
   }
@@ -84,6 +91,7 @@ String gpsLabel(Position? p) {
 
 Color gpsColor(Position? p) {
   final l = gpsLabel(p);
+  if (l == '—') return AppColors.gray; // データなし
   if (l == '良好') return AppColors.green;
   if (l == '普通' || l == '受信中') return AppColors.ink;
   return AppColors.red;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/tracking.dart';
+import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
 import '../replay/replay_page.dart';
@@ -15,9 +16,10 @@ class DeviceCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(trackingProvider);
+    ref.watch(clockProvider); // 経過時間の表示を 30 秒ごとに更新
     final d = s.selected;
     if (d == null) {
-      return const _CardShell(child: Padding(padding: EdgeInsets.all(20), child: Text('端末が登録されていません。管理画面から追加してください。')));
+      return const _CardShell(child: Padding(padding: EdgeInsets.all(20), child: Text('表示できる端末がありません。管理画面で端末を追加するか、管理者に割り当てを依頼してください。')));
     }
     final p = s.positions[d.id];
     final info = DeviceStatusInfo.of(d, p, s.stoppedSince[d.id]);
@@ -104,7 +106,14 @@ class _CardShell extends StatelessWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
         ),
-        child: SafeArea(top: false, child: child),
+        // 横向き・文字を大きくした設定でもはみ出さないよう、高さを画面の 55% までにしてスクロールさせる
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (MediaQuery.orientationOf(context) == Orientation.landscape ? 0.45 : 0.55)),
+            child: SingleChildScrollView(child: child),
+          ),
+        ),
       );
 }
 

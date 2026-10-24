@@ -34,13 +34,17 @@ class SessionStore {
   static const _kLastSeenEvents = 'last_seen_events';
   static const _kPhoneNotify = 'phone_notify';
 
-  /// アラームを最後に見た時刻（これより新しいものを未読とする）
-  Future<DateTime?> readLastSeenEvents() async {
-    final v = await _s.read(key: _kLastSeenEvents);
+  /// アラームを最後に見た時刻（これより新しいものを未読とする）。
+  /// 家族で同じスマホを使い分けても混ざらないよう、サーバーとユーザーごとに分けて保存する
+  static String _lastSeenKey(String owner) => '${_kLastSeenEvents}_${owner.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}';
+
+  Future<DateTime?> readLastSeenEvents(String owner) async {
+    final v = await _s.read(key: _lastSeenKey(owner));
     return v == null ? null : DateTime.tryParse(v);
   }
 
-  Future<void> saveLastSeenEvents(DateTime t) => _s.write(key: _kLastSeenEvents, value: t.toUtc().toIso8601String());
+  Future<void> saveLastSeenEvents(String owner, DateTime t) =>
+      _s.write(key: _lastSeenKey(owner), value: t.toUtc().toIso8601String());
 
   /// このスマホに通知を表示するか（初期値: する）
   Future<bool> readPhoneNotify() async => (await _s.read(key: _kPhoneNotify)) != 'off';

@@ -25,6 +25,12 @@ class _MapViewState extends ConsumerState<MapView> {
   static const _tokyo = LatLng(35.681236, 139.767125);
 
   @override
+  void dispose() {
+    _map.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     // 起動時は、選択中の端末の位置で地図を開く（起動直後に移動するとタイルが出ないことがあるため）
@@ -164,6 +170,7 @@ class _MapViewState extends ConsumerState<MapView> {
         ]),
       ),
     );
+    if (!mounted) return; // 選んでいる間に画面が切り替わった（PC のウィンドウ幅の変更など）
     if (chosen != null) ref.read(mapTypeProvider.notifier).set(chosen);
   }
 }

@@ -42,6 +42,7 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
   Timer? _timer;
   bool _mapReady = false;
   int _loadGeneration = 0;
+  int _request = 0;
 
   static const _tick = Duration(milliseconds: 250);
 
@@ -57,16 +58,25 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _map.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     final client = ref.read(authProvider).value?.client;
     if (client == null) return;
+    // 日付を素早く切り替えたとき、古い日の結果で上書きしないよう番号で見分ける
+    final request = ++_request;
     _pause();
     setState(() {
       _loading = true;
       _error = null;
+      // 前の日のデータを残さない（失敗したときに別の日のルートを書き出さないように）
+      _route = const [];
+      _stops = const [];
+      _trips = const [];
+      _summary = null;
+      _cursor = 0;
     });
     final r = dayRange(_day);
     try {
@@ -76,7 +86,7 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
         client.getTrips(widget.deviceId, r.from, r.to),
         client.getSummary(widget.deviceId, r.from, r.to),
       ]);
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _route = (results[0] as List<Position>).where((p) => p.valid || p.latitude != 0).toList();
         _stops = results[1] as List<StopReport>;
@@ -87,10 +97,10 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
         _mapReady = false;
         _loadGeneration++;
       });
-    } on ApiException catch (e) {
-      if (mounted) {
+    } catch (e) {
+      if (mounted && request == _request) {
         setState(() {
-          _error = e.message;
+          _error = e is ApiException ? e.message : '走行記録を読み込めませんでした';
           _loading = false;
         });
       }
@@ -255,7 +265,13 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
     return [
       PolylineLayer(
         polylines: [
-          Polyline(points: all, strokeWidth: 5, color: AppColors.navy.withValues(alpha: 0.55), borderStrokeWidth: 1, borderColor: Colors.white70),
+          Polyline(
+            points: all,
+            strokeWidth: 5,
+            color: AppColors.navy.withValues(alpha: 0.55),
+            borderStrokeWidth: 1,
+            borderColor: Colors.white70,
+          ),
           if (played.length >= 2)
             Polyline(points: played, strokeWidth: 6, color: AppColors.teal, borderStrokeWidth: 1.5, borderColor: Colors.white),
         ],
@@ -473,73 +489,83 @@ class _ReplayPanel extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        // 横向き・大きい文字でもはみ出さないよう、高さを抑えてスクロールさせる
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _Kpi(value: summary == null ? '—' : Units.distanceKm(summary!.distance), label: '走行距離'),
-                  _Kpi(value: driving == Duration.zero ? '—' : Units.duration(driving), label: '走行時間'),
-                  _Kpi(value: summary == null ? '—' : Units.speedKmh(summary!.maxSpeed), label: '最高速度'),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      c == null || c.fixTime == null ? '—' : '${Units.dateTime(c.fixTime!)}　${Units.speedKmh(c.speed)}',
-                      style: const TextStyle(fontSize: 13, color: AppColors.sub),
-                    ),
+                  Row(
+                    children: [
+                      _Kpi(value: summary == null ? '—' : Units.distanceKm(summary!.distance), label: '走行距離'),
+                      _Kpi(value: driving == Duration.zero ? '—' : Units.duration(driving), label: '走行時間'),
+                      _Kpi(value: summary == null ? '—' : Units.speedKmh(summary!.maxSpeed), label: '最高速度'),
+                    ],
                   ),
-                  InkWell(
-                    onTap: stops.isEmpty ? null : onShowStops,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      child: Text(
-                        '停車 ${stops.length} 回${stops.isEmpty ? '' : ' ›'}',
-                        style: TextStyle(fontSize: 13, color: stops.isEmpty ? AppColors.sub : AppColors.navy, fontWeight: FontWeight.w600),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          c == null || c.fixTime == null ? '—' : '${Units.dateTime(c.fixTime!)}　${Units.speedKmh(c.speed)}',
+                          style: const TextStyle(fontSize: 13, color: AppColors.sub),
+                        ),
                       ),
-                    ),
+                      InkWell(
+                        onTap: stops.isEmpty ? null : onShowStops,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          child: Text(
+                            '停車 ${stops.length} 回${stops.isEmpty ? '' : ' ›'}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: stops.isEmpty ? AppColors.sub : AppColors.navy,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      IconButton.filled(
+                        tooltip: playing ? '一時停止' : '再生',
+                        style: IconButton.styleFrom(backgroundColor: AppColors.ink),
+                        onPressed: length < 2 ? null : onTogglePlay,
+                        icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                      ),
+                      Expanded(
+                        child: Slider(
+                          value: length < 2 ? 0 : cursor.clamp(0, (length - 1).toDouble()),
+                          min: 0,
+                          max: length < 2 ? 1 : (length - 1).toDouble(),
+                          activeColor: AppColors.teal,
+                          onChanged: length < 2 ? null : onSeek,
+                        ),
+                      ),
+                      OutlinedButton(
+                        onPressed: onSpeed,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(52, 34),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                          side: const BorderSide(color: AppColors.ink, width: 1.5),
+                        ),
+                        child: Text(
+                          '${speed}x',
+                          style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              Row(
-                children: [
-                  IconButton.filled(
-                    tooltip: playing ? '一時停止' : '再生',
-                    style: IconButton.styleFrom(backgroundColor: AppColors.ink),
-                    onPressed: length < 2 ? null : onTogglePlay,
-                    icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: length < 2 ? 0 : cursor.clamp(0, (length - 1).toDouble()),
-                      min: 0,
-                      max: length < 2 ? 1 : (length - 1).toDouble(),
-                      activeColor: AppColors.teal,
-                      onChanged: length < 2 ? null : onSeek,
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: onSpeed,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(52, 34),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-                      side: const BorderSide(color: AppColors.ink, width: 1.5),
-                    ),
-                    child: Text(
-                      '${speed}x',
-                      style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

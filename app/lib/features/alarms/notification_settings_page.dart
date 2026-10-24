@@ -40,8 +40,9 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
 
   Future<void> _setPhoneNotify(bool on) async {
     if (on) await PhoneNotifier.instance.requestPermission();
+    if (!mounted) return;
     await ref.read(sessionStoreProvider).savePhoneNotify(on);
-    setState(() => _phoneNotify = on);
+    if (mounted) setState(() => _phoneNotify = on);
   }
 
   @override
@@ -82,7 +83,7 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                     title: Text(t.label),
                     subtitle: Text(t.description, style: const TextStyle(fontSize: 12)),
                     value: s.isOn(t.type),
-                    onChanged: _busy.contains(t.type) ? null : (v) => _toggle(t.type, v),
+                    onChanged: _busy.contains(t.type) || s.working ? null : (v) => _toggle(t.type, v),
                   ),
               ]),
               Padding(
@@ -90,7 +91,7 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.auto_awesome),
                   label: const Text('おすすめ設定にする'),
-                  onPressed: () => ref.read(notificationSettingsProvider.notifier).enableRecommended(),
+                  onPressed: s.working ? null : () => ref.read(notificationSettingsProvider.notifier).enableRecommended(),
                 ),
               ),
               const Padding(

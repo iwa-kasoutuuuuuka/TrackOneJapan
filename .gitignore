@@ -24,3 +24,6 @@ desktop.ini
 
 # テスト環境のログイン情報
 *.local.txt
+
+# Claude の作業用（サブエージェントの worktree）
+.claude/worktrees/

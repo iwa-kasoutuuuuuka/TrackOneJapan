@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Traccar サーバーとの通信 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- アラームの通知（Android 13 以降は許可が必要） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="TrackOne"
         android:name="${applicationName}"

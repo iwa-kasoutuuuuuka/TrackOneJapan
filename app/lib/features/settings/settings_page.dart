@@ -6,6 +6,7 @@ import '../../core/state/auth.dart';
 import '../../core/state/map_type.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
+import '../alarms/notification_settings_page.dart';
 
 /// マイページ・設定
 class SettingsPage extends ConsumerWidget {
@@ -62,6 +63,13 @@ class SettingsPage extends ConsumerWidget {
               );
               if (t != null) ref.read(mapTypeProvider.notifier).set(t);
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('通知の設定'),
+            subtitle: const Text('受け取るアラームの種類、通知欄への表示'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationSettingsPage())),
           ),
         ]),
         _Section(children: [

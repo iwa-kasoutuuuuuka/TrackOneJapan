@@ -107,13 +107,26 @@ class Position {
 }
 
 class TrackerEvent {
-  TrackerEvent({required this.id, required this.type, required this.deviceId, required this.eventTime, required this.attributes});
+  TrackerEvent({
+    required this.id,
+    required this.type,
+    required this.deviceId,
+    required this.eventTime,
+    required this.attributes,
+    this.positionId = 0,
+    this.geofenceId = 0,
+  });
 
   final int id;
   final String type;
   final int deviceId;
   final DateTime? eventTime;
   final Map<String, dynamic> attributes;
+  final int positionId;
+  final int geofenceId;
+
+  /// 警報の種類（type が alarm のとき。sos / vibration / powerCut など）
+  String? get alarm => attributes['alarm'] as String?;
 
   factory TrackerEvent.fromJson(Map<String, dynamic> j) => TrackerEvent(
         id: (j['id'] ?? 0) as int,
@@ -121,6 +134,8 @@ class TrackerEvent {
         deviceId: (j['deviceId'] ?? 0) as int,
         eventTime: _date(j['eventTime']),
         attributes: Map<String, dynamic>.from((j['attributes'] ?? {}) as Map),
+        positionId: (j['positionId'] ?? 0) as int,
+        geofenceId: (j['geofenceId'] ?? 0) as int,
       );
 }
 
@@ -178,5 +193,44 @@ class SummaryReport {
         distance: _double(j['distance']),
         maxSpeed: _double(j['maxSpeed']),
         averageSpeed: _double(j['averageSpeed']),
+      );
+}
+
+
+// ---------- 通知・アラーム（段階3） ----------
+
+/// ジオフェンス（エリア）
+class Geofence {
+  Geofence({required this.id, required this.name, required this.area});
+  final int id;
+  final String name;
+  final String area; // WKT
+
+  factory Geofence.fromJson(Map<String, dynamic> j) =>
+      Geofence(id: j['id'] as int, name: (j['name'] ?? '') as String, area: (j['area'] ?? '') as String);
+}
+
+/// Traccar の通知設定（どの種類のイベントを、どの方法で届けるか）
+class NotificationConfig {
+  NotificationConfig({required this.id, required this.type, required this.always, required this.notificators, this.attributes = const {}});
+  final int id;
+  final String type;
+  final bool always;
+  final String notificators; // "web,firebase" など
+  final Map<String, dynamic> attributes;
+
+  /// 「警報」の通知で、届ける警報の種類が設定されていない（＝何も届かない）
+  bool get missingAlarms => type == 'alarm' && (attributes['alarms'] as String?)?.isNotEmpty != true;
+
+  Map<String, dynamic> toJson() => {'id': id, 'type': type, 'always': always, 'notificators': notificators, 'attributes': attributes};
+
+  bool get hasWeb => notificators.split(',').map((s) => s.trim()).contains('web');
+
+  factory NotificationConfig.fromJson(Map<String, dynamic> j) => NotificationConfig(
+        id: j['id'] as int,
+        type: (j['type'] ?? '') as String,
+        always: (j['always'] ?? false) as bool,
+        notificators: (j['notificators'] ?? '') as String,
+        attributes: Map<String, dynamic>.from((j['attributes'] ?? {}) as Map),
       );
 }

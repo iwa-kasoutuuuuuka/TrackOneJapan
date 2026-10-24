@@ -158,6 +158,70 @@ class TraccarClient {
     return list.isEmpty ? null : SummaryReport.fromJson(list.first as Map<String, dynamic>);
   }
 
+  // ---------- アラーム・通知（段階3） ----------
+
+  /// 期間内のイベント（複数端末まとめて）
+  Future<List<TrackerEvent>> getEvents(List<int> deviceIds, DateTime from, DateTime to) async {
+    if (deviceIds.isEmpty) return [];
+    final res = await _call(() => _dio.get('/api/reports/events',
+        queryParameters: {'deviceId': deviceIds, 'from': from.toUtc().toIso8601String(), 'to': to.toUtc().toIso8601String()},
+        options: Options(listFormat: ListFormat.multi)));
+    return (res.data as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Position?> getPosition(int positionId) async {
+    if (positionId == 0) return null;
+    final res = await _call(() => _dio.get('/api/positions', queryParameters: {'id': positionId}));
+    final list = res.data as List;
+    return list.isEmpty ? null : Position.fromJson(list.first as Map<String, dynamic>);
+  }
+
+  Future<List<Geofence>> getGeofences() async {
+    final res = await _call(() => _dio.get('/api/geofences'));
+    return (res.data as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<NotificationConfig>> getNotifications() async {
+    final res = await _call(() => _dio.get('/api/notifications'));
+    return (res.data as List).map((e) => NotificationConfig.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// サーバーで使える通知方法（web / mail / firebase など）
+  Future<List<String>> getNotificators() async {
+    final res = await _call(() => _dio.get('/api/notifications/notificators'));
+    return (res.data as List).map((e) => (e as Map<String, dynamic>)['type'] as String).toList();
+  }
+
+  /// Traccar が定義している警報の種類（「警報」の通知は、ここに列挙した種類しか届かない）
+  static const allAlarmKeys = [
+    'general', 'sos', 'vibration', 'movement', 'lowspeed', 'overspeed', 'fallDown', 'lowPower', 'lowBattery', 'fault', //
+    'powerOff', 'powerOn', 'door', 'lock', 'unlock', 'geofence', 'geofenceEnter', 'geofenceExit', 'gpsAntennaCut', //
+    'accident', 'tow', 'idle', 'highRpm', 'hardAcceleration', 'hardBraking', 'hardCornering', 'laneChange', //
+    'fatigueDriving', 'powerCut', 'powerRestored', 'jamming', 'temperature', 'parking', 'bonnet', 'footBrake', //
+    'fuelLeak', 'tampering', 'removing',
+  ];
+
+  /// 全端末を対象にした通知設定を作る
+  Future<NotificationConfig> createNotification(String type, List<String> notificators) async {
+    final res = await _call(() => _dio.post('/api/notifications', data: {
+          'type': type,
+          'always': true,
+          'notificators': notificators.join(','),
+          'attributes': <String, dynamic>{if (type == 'alarm') 'alarms': allAlarmKeys.join(',')},
+        }));
+    return NotificationConfig.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// 「警報」の通知に、届ける警報の種類（全種類）を設定し直す
+  Future<void> repairAlarmNotification(NotificationConfig c) async {
+    final body = c.toJson()..['attributes'] = {...c.attributes, 'alarms': allAlarmKeys.join(',')};
+    await _call(() => _dio.put('/api/notifications/${c.id}', data: body));
+  }
+
+  Future<void> deleteNotification(int id) async {
+    await _call(() => _dio.delete('/api/notifications/$id'));
+  }
+
   // ---------- リアルタイム ----------
 
   /// /api/socket に接続し、受信した JSON をそのまま流す

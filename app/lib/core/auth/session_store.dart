@@ -30,4 +30,19 @@ class SessionStore {
 
   Future<String?> readMapType() => _s.read(key: _kMapType);
   Future<void> saveMapType(String value) => _s.write(key: _kMapType, value: value);
+
+  static const _kLastSeenEvents = 'last_seen_events';
+  static const _kPhoneNotify = 'phone_notify';
+
+  /// アラームを最後に見た時刻（これより新しいものを未読とする）
+  Future<DateTime?> readLastSeenEvents() async {
+    final v = await _s.read(key: _kLastSeenEvents);
+    return v == null ? null : DateTime.tryParse(v);
+  }
+
+  Future<void> saveLastSeenEvents(DateTime t) => _s.write(key: _kLastSeenEvents, value: t.toUtc().toIso8601String());
+
+  /// このスマホに通知を表示するか（初期値: する）
+  Future<bool> readPhoneNotify() async => (await _s.read(key: _kPhoneNotify)) != 'off';
+  Future<void> savePhoneNotify(bool on) => _s.write(key: _kPhoneNotify, value: on ? 'on' : 'off');
 }

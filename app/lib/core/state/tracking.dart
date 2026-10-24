@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/models.dart';
 import '../api/traccar_client.dart';
+import 'alarms.dart';
 import 'auth.dart';
 
 /// 端末・最新位置・停車開始時刻・住所をまとめた状態
@@ -17,7 +18,6 @@ class TrackingState {
     this.selectedId,
     this.loading = true,
     this.connected = false,
-    this.unreadEvents = 0,
     this.error,
   });
 
@@ -28,7 +28,6 @@ class TrackingState {
   final int? selectedId;
   final bool loading;
   final bool connected;
-  final int unreadEvents;
   final String? error;
 
   List<Device> get sortedDevices => devices.values.toList()..sort((a, b) => a.name.compareTo(b.name));
@@ -42,7 +41,6 @@ class TrackingState {
     int? selectedId,
     bool? loading,
     bool? connected,
-    int? unreadEvents,
     String? error,
     bool clearError = false,
   }) =>
@@ -54,7 +52,6 @@ class TrackingState {
         selectedId: selectedId ?? this.selectedId,
         loading: loading ?? this.loading,
         connected: connected ?? this.connected,
-        unreadEvents: unreadEvents ?? this.unreadEvents,
         error: clearError ? null : (error ?? this.error),
       );
 }
@@ -166,27 +163,38 @@ class TrackingNotifier extends Notifier<TrackingState> {
         devices[d.id] = d;
       }
       next = next.copyWith(devices: devices);
+      ref.read(alarmProvider.notifier).updateDeviceNames({for (final d in devices.values) d.id: d.name});
     }
+    final needStopRefresh = <int>[];
     if (msg['positions'] is List) {
       final positions = Map<int, Position>.from(next.positions);
+      final stopped = Map<int, DateTime?>.from(next.stoppedSince);
       for (final e in msg['positions'] as List) {
         final p = Position.fromJson(e as Map<String, dynamic>);
         positions[p.deviceId] = p;
+        if (p.motion == true) {
+          stopped[p.deviceId] = null; // 走り出したら停車時間はリセット
+        } else if (p.motion == false && stopped[p.deviceId] == null) {
+          needStopRefresh.add(p.deviceId); // 止まったら停車開始時刻を取り直す
+        }
       }
-      next = next.copyWith(positions: positions);
+      next = next.copyWith(positions: positions, stoppedSince: stopped);
     }
     if (msg['events'] is List) {
       final stopped = Map<int, DateTime?>.from(next.stoppedSince);
-      var unread = next.unreadEvents;
+      final events = <TrackerEvent>[];
       for (final e in msg['events'] as List) {
         final ev = TrackerEvent.fromJson(e as Map<String, dynamic>);
         if (ev.type == 'deviceStopped') stopped[ev.deviceId] = ev.eventTime ?? DateTime.now();
         if (ev.type == 'deviceMoving') stopped[ev.deviceId] = null;
-        if (ev.type != 'deviceMoving' && ev.type != 'deviceStopped') unread++;
+        events.add(ev);
       }
-      next = next.copyWith(stoppedSince: stopped, unreadEvents: unread);
+      next = next.copyWith(stoppedSince: stopped);
+      // アラーム一覧に追加し、スマホに通知
+      ref.read(alarmProvider.notifier).addRealtime(events);
     }
     state = next;
+    _refreshStoppedSince(needStopRefresh);
     final sel = state.selectedId;
     if (sel != null) ensureAddress(sel);
   }
@@ -207,7 +215,20 @@ class TrackingNotifier extends Notifier<TrackingState> {
     select(next.id);
   }
 
-  void clearUnread() => state = state.copyWith(unreadEvents: 0);
+  /// 停車開始時刻の取り直し（同じ端末は 2 分に 1 回まで）
+  final Map<int, DateTime> _stopRefreshedAt = {};
+  void _refreshStoppedSince(List<int> deviceIds) {
+    final now = DateTime.now();
+    final targets = deviceIds.where((id) {
+      final last = _stopRefreshedAt[id];
+      return last == null || now.difference(last) > const Duration(minutes: 2);
+    }).toList();
+    if (targets.isEmpty) return;
+    for (final id in targets) {
+      _stopRefreshedAt[id] = now;
+    }
+    _loadStoppedSince(targets);
+  }
 
   /// 住所を取得（50m 以上動いたときだけ取り直す）
   Future<void> ensureAddress(int deviceId, {bool force = false}) async {

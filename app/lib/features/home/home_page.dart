@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/notifications/phone_notifier.dart';
+import '../../core/state/alarms.dart';
+import '../../core/state/auth.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
+import '../alarms/alarm_list_page.dart';
 import '../settings/settings_page.dart';
 import 'device_card.dart';
 import 'device_list_view.dart';
@@ -20,8 +24,18 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _tab = 0; // 0 = 地図, 1 = 一覧
 
   @override
+  void initState() {
+    super.initState();
+    // 通知の許可（Android 13 以降）を、最初にホームを開いたときにお願いする
+    Future.microtask(() async {
+      if (await ref.read(sessionStoreProvider).readPhoneNotify()) await PhoneNotifier.instance.requestPermission();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final s = ref.watch(trackingProvider);
+    final unread = ref.watch(alarmProvider.select((a) => a.unreadCount));
 
     return Scaffold(
       appBar: AppBar(
@@ -47,15 +61,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         actions: [
           IconButton(
             tooltip: 'アラーム',
-            onPressed: () {
-              ref.read(trackingProvider.notifier).clearUnread();
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(const SnackBar(content: Text('アラーム一覧は次の開発段階で追加します')));
-            },
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AlarmListPage())),
             icon: Badge(
-              isLabelVisible: s.unreadEvents > 0,
-              label: Text('${s.unreadEvents}'),
+              isLabelVisible: unread > 0,
+              label: Text(unread > 99 ? '99+' : '$unread'),
               backgroundColor: AppColors.red,
               child: const Icon(Icons.notifications_none),
             ),

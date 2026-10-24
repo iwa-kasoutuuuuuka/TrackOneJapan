@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>TrackOne Japan 画面イメージ</title>
+<style>
+  :root {
+    --navy: #1F4A85; --navy-dark: #0D2346; --red: #E63946; --teal: #20B7A3; --teal-l: #35D0BA;
+    --orange: #F08C00; --green: #2B9348; --gray: #8A94A6; --bg: #EEF1F6; --ink: #1B2333; --sub: #5B6475;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); font-family: "Yu Gothic UI", "Meiryo UI", "Hiragino Sans", sans-serif; color: var(--ink); padding: 36px 40px 44px; width: 1180px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  header img { width: 56px; height: 56px; }
+  header h1 { font-size: 26px; letter-spacing: .02em; }
+  header p { color: var(--sub); font-size: 14px; margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 340px); gap: 36px 40px; justify-content: center; }
+  figure { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  figcaption { font-size: 15px; font-weight: 700; }
+  figcaption span { display: block; font-weight: 400; color: var(--sub); font-size: 12.5px; text-align: center; margin-top: 2px; }
+  .phone { width: 300px; height: 620px; border-radius: 38px; background: #10151F; padding: 10px; box-shadow: 0 14px 30px rgba(13,35,70,.18); }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+  .status { height: 26px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; font-size: 11px; font-weight: 600; flex: none; }
+  .status.light { color: #fff; }
+  .appbar { height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; flex: none; }
+  .appbar .title { font-size: 16px; font-weight: 700; }
+  .tabs { display: flex; background: #EDF1F7; border-radius: 18px; padding: 3px; }
+  .tabs b { font-size: 12.5px; padding: 5px 16px; border-radius: 15px; color: var(--sub); font-weight: 600; }
+  .tabs b.on { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .ico { width: 22px; height: 22px; fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .bell { position: relative; }
+  .badge { position: absolute; top: -5px; right: -7px; background: var(--red); color: #fff; font-size: 9.5px; font-weight: 700; border-radius: 8px; padding: 1px 5px; }
+  .map { position: relative; flex: 1; overflow: hidden; }
+  .map > svg.bgmap { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .fab { position: absolute; right: 10px; width: 36px; height: 36px; border-radius: 10px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.18); display: flex; align-items: center; justify-content: center; }
+  .fab .ico { width: 18px; height: 18px; stroke: var(--navy); }
+  .attr { position: absolute; left: 6px; bottom: 4px; font-size: 8px; color: #555; background: rgba(255,255,255,.75); padding: 1px 4px; border-radius: 3px; }
+  .marker { position: absolute; transform: translate(-50%, -50%); }
+  .marker .dot { width: 34px; height: 34px; border-radius: 50%; background: var(--navy); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; }
+  .marker .dot svg { width: 18px; height: 18px; fill: #fff; }
+  .marker .label { position: absolute; top: -24px; left: 50%; transform: translateX(-50%); background: #fff; color: var(--navy); font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+  .card { background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -4px 14px rgba(0,0,0,.08); padding: 14px 16px 8px; flex: none; }
+  .row { display: flex; align-items: center; justify-content: space-between; }
+  .name { font-size: 17px; font-weight: 700; }
+  .pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 10px; }
+  .pill.stop { background: #FFF1DB; color: #B86200; }
+  .pill.move { background: #DDF5E6; color: var(--green); }
+  .pill.off { background: #ECEEF2; color: var(--gray); }
+  .addr { font-size: 12px; color: var(--sub); margin: 6px 0 10px; line-height: 1.5; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #EEF0F4; border-bottom: 1px solid #EEF0F4; padding: 8px 0; }
+  .stats div { text-align: center; font-size: 11px; color: var(--sub); }
+  .stats b { display: block; color: var(--ink); font-size: 13px; margin-top: 1px; }
+  .updated { font-size: 10.5px; color: var(--gray); margin-top: 6px; }
+  .menu { display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px 6px 14px; background: #fff; flex: none; }
+  .menu div { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; color: var(--sub); }
+  .menu .circle { width: 38px; height: 38px; border-radius: 13px; display: flex; align-items: center; justify-content: center; }
+  .menu .circle .ico { stroke: #fff; width: 19px; height: 19px; }
+  /* ログイン */
+  .login-top { background: linear-gradient(160deg, #24569A, var(--navy-dark)); color: #fff; padding: 6px 0 34px; text-align: center; flex: none; }
+  .login-top img { width: 92px; height: 92px; margin: 26px auto 12px; display: block; filter: drop-shadow(0 6px 12px rgba(0,0,0,.25)); }
+  .login-top h2 { font-size: 22px; letter-spacing: .03em; }
+  .login-top p { font-size: 12px; opacity: .8; margin-top: 4px; }
+  .form { padding: 22px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  .field { border: 1.5px solid #D5DAE3; border-radius: 12px; padding: 7px 12px; position: relative; }
+  .field small { font-size: 10px; color: var(--sub); display: block; }
+  .field div { font-size: 13px; margin-top: 1px; }
+  .field.focus { border-color: var(--navy); }
+  .field .qr { position: absolute; right: 10px; top: 12px; }
+  .btn { background: var(--navy); color: #fff; text-align: center; font-weight: 700; border-radius: 12px; padding: 12px; font-size: 14px; }
+  .note { font-size: 10.5px; color: var(--gray); text-align: center; line-height: 1.6; }
+  /* 一覧 */
+  .list { flex: 1; background: #F5F7FA; padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+  .item { background: #fff; border-radius: 14px; padding: 11px 12px; display: flex; gap: 11px; align-items: flex-start; }
+  .item .av { width: 40px; height: 40px; border-radius: 12px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .item .av svg { width: 22px; height: 22px; fill: #fff; }
+  .item .body { flex: 1; min-width: 0; }
+  .item .t { display: flex; justify-content: space-between; align-items: center; }
+  .item .t b { font-size: 14px; }
+  .item .a { font-size: 11px; color: var(--sub); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .m { font-size: 10.5px; color: var(--gray); margin-top: 4px; display: flex; gap: 10px; }
+  .search { margin: 0 10px 8px; background: #EDF1F7; border-radius: 10px; padding: 7px 12px; font-size: 12px; color: var(--gray); flex: none; }
+  /* 再生 */
+  .chips { display: flex; gap: 6px; padding: 0 12px 8px; flex: none; overflow: hidden; }
+  .chip { font-size: 11.5px; border: 1.5px solid #D5DAE3; border-radius: 14px; padding: 4px 10px; color: var(--sub); font-weight: 600; white-space: nowrap; flex: none; }
+  .chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .panel { padding: 12px 16px 16px; flex: none; background: #fff; box-shadow: 0 -4px 14px rgba(0,0,0,.08); border-radius: 18px 18px 0 0; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-bottom: 12px; }
+  .kpis b { display: block; font-size: 16px; }
+  .kpis small { font-size: 10.5px; color: var(--sub); }
+  .now { font-size: 11px; color: var(--sub); display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .player { display: flex; align-items: center; gap: 10px; }
+  .play { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); display: flex; align-items: center; justify-content: center; flex: none; }
+  .bar { flex: 1; height: 5px; background: #E1E5EC; border-radius: 3px; position: relative; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 46%; background: var(--teal); border-radius: 3px; }
+  .bar u { position: absolute; left: 46%; top: 50%; width: 15px; height: 15px; border-radius: 50%; background: #fff; border: 3px solid var(--teal); transform: translate(-50%, -50%); }
+  .speed { font-size: 12px; font-weight: 700; border: 1.5px solid var(--ink); border-radius: 12px; padding: 3px 9px; }
+  /* アラーム */
+  .alarms { flex: 1; background: #F5F7FA; padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 7px; }
+  .day { font-size: 11px; color: var(--sub); font-weight: 700; margin: 6px 4px 0; }
+  .al { background: #fff; border-radius: 13px; padding: 10px 11px; display: flex; gap: 10px; align-items: center; position: relative; }
+  .al .ic { width: 34px; height: 34px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .al .ic .ico { stroke: #fff; width: 18px; height: 18px; }
+  .al b { font-size: 13px; display: block; }
+  .al small { font-size: 10.5px; color: var(--sub); display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+  .al time { position: absolute; right: 11px; top: 10px; font-size: 10.5px; color: var(--gray); }
+  .unread::after { content: ""; position: absolute; left: 4px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--red); }
+  /* ジオフェンス */
+  .sheet { padding: 14px 16px 16px; background: #fff; box-shadow: 0 -4px 14px rgba(0,0,0,.08); border-radius: 18px 18px 0 0; flex: none; display: flex; flex-direction: column; gap: 11px; }
+  .slider { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .slider .bar i { width: 30%; background: var(--navy); }
+  .slider .bar u { left: 30%; border-color: var(--navy); }
+  .toggles { display: flex; gap: 8px; }
+  .tg { flex: 1; border: 1.5px solid #D5DAE3; border-radius: 11px; padding: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .sw { width: 30px; height: 17px; border-radius: 9px; background: #CBD2DD; position: relative; }
+  .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; }
+  .sw.on { background: var(--teal); }
+  .sw.on::after { left: 15px; }
+  footer { margin-top: 30px; text-align: center; font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+
+<!-- 共通の地図（イメージ用） -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="map" viewBox="0 0 300 420" preserveAspectRatio="xMidYMid slice">
+      <rect width="300" height="420" fill="#F3F0E8"/>
+      <path d="M-10 300 C 60 270, 110 330, 170 300 S 270 250, 320 280 L 320 330 C 260 300, 220 360, 160 345 S 50 320, -10 350 Z" fill="#BFDDF2"/>
+      <rect x="196" y="40" width="90" height="70" rx="8" fill="#D5EBCB"/>
+      <rect x="20" y="360" width="80" height="50" rx="8" fill="#D5EBCB"/>
+      <rect x="30" y="60" width="60" height="40" rx="4" fill="#E9E4D8"/>
+      <rect x="120" y="150" width="56" height="44" rx="4" fill="#E9E4D8"/>
+      <rect x="210" y="160" width="60" height="50" rx="4" fill="#E9E4D8"/>
+      <g stroke="#FFFFFF" stroke-linecap="round" fill="none">
+        <path d="M0 130 H300" stroke-width="12"/>
+        <path d="M105 0 V420" stroke-width="12"/>
+        <path d="M0 230 C 80 215, 200 245, 300 220" stroke-width="9"/>
+        <path d="M190 0 C 185 120, 200 250, 230 420" stroke-width="9"/>
+        <path d="M0 60 H300 M0 400 H300 M40 0 V420 M260 0 V420" stroke-width="5"/>
+      </g>
+      <g stroke="#F6C85F" stroke-linecap="round" fill="none"><path d="M0 130 H300" stroke-width="5"/><path d="M105 0 V420" stroke-width="5"/></g>
+    </symbol>
+    <symbol id="car" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11a2 2 0 0 1 2 2v4h-2v2h-3v-2H8v2H5v-2H3v-4a2 2 0 0 1 2-2zm2.2 0h9.6l-1-3H8.2l-1 3zM6.5 15a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></symbol>
+    <symbol id="bike" viewBox="0 0 24 24"><path d="M5 18.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zm0-2a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm14 2a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zm0-2a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 15l-2.5-5H7V8h3.7l1.2 2.4L14 8h2l1 3h-2.2l-1.2 1.4L14 15h-2z"/></symbol>
+    <symbol id="box" viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7l9-5zm0 2.3L6.2 7.5 12 10.7l5.8-3.2L12 4.3zM5 9.2v6.6l6 3.3v-6.6L5 9.2zm14 0l-6 3.3v6.6l6-3.3V9.2z"/></symbol>
+  </defs>
+</svg>
+
+<header>
+  <img src="../../assets/icon/png/icon-256.png" alt="">
+  <div>
+    <h1>TrackOne Japan　スマホアプリ画面イメージ</h1>
+    <p>TrackerOne と同等の機能を日本語で。地図は地理院タイル / OpenStreetMap（無料）、通知は Firebase（無料）</p>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- 1 ログイン -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="login-top">
+        <div class="status light"><span>9:41</span><span>●●● 5G</span></div>
+        <img src="../../assets/icon/png/icon-256.png" alt="">
+        <h2>TrackOne Japan</h2>
+        <p>GPS 発信機の位置をいつでも確認</p>
+      </div>
+      <div class="form">
+        <div class="field focus"><small>サーバー URL</small><div>https://tracker-pc.example.ts.net</div>
+          <svg class="ico qr" viewBox="0 0 24 24" style="stroke:var(--navy)"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg></div>
+        <div class="field"><small>メールアドレス</small><div>taro@example.jp</div></div>
+        <div class="field"><small>パスワード</small><div>••••••••••</div></div>
+        <div class="btn">ログイン</div>
+        <p class="note">サーバー URL は管理画面の QR コードを<br>読み取っても入力できます</p>
+      </div>
+    </div></div>
+    <figcaption>① ログイン<span>サーバー URL・メール・パスワード</span></figcaption>
+  </figure>
+
+  <!-- 2 ホーム（地図） -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+      <div class="appbar">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>
+        <div class="tabs"><b class="on">地図</b><b>一覧</b></div>
+        <div class="bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg><span class="badge">3</span></div>
+      </div>
+      <div class="map">
+        <svg class="bgmap"><use href="#map"/></svg>
+        <div class="fab" style="top:10px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></div>
+        <div class="fab" style="top:120px"><svg class="ico" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></div>
+        <div class="fab" style="top:162px"><svg class="ico" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+        <div class="fab" style="top:216px"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+        <div class="marker" style="left:118px;top:150px"><div class="label">車</div><div class="dot"><svg><use href="#car"/></svg></div></div>
+        <div class="marker" style="left:206px;top:212px;opacity:.85"><div class="dot" style="background:var(--teal)"><svg><use href="#bike"/></svg></div></div>
+        <span class="attr">地理院タイル</span>
+      </div>
+      <div class="card">
+        <div class="row"><span class="name">車</span><span class="pill stop">停車中 23分</span></div>
+        <div class="addr">東京都千代田区丸の内1丁目9</div>
+        <div class="stats"><div>GPS<b style="color:var(--green)">良好</b></div><div>エンジン<b>OFF</b></div><div>電池<b>80%</b></div></div>
+        <div class="updated">最終更新 12:34（1分前）</div>
+      </div>
+      <div class="menu">
+        <div><span class="circle" style="background:var(--teal)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg></span>履歴再生</div>
+        <div><span class="circle" style="background:var(--navy)"><svg class="ico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span>詳細</div>
+        <div><span class="circle" style="background:#3B82C4"><svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg></span>共有</div>
+        <div><span class="circle" style="background:var(--red)"><svg class="ico" viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></span>コマンド</div>
+      </div>
+    </div></div>
+    <figcaption>② ホーム（地図）<span>位置・状態・住所・GPS/エンジン/電池</span></figcaption>
+  </figure>
+
+  <!-- 3 一覧 -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+      <div class="appbar">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>
+        <div class="tabs"><b>地図</b><b class="on">一覧</b></div>
+        <div class="bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg><span class="badge">3</span></div>
+      </div>
+      <div class="search">端末を検索</div>
+      <div class="list">
+        <div class="item"><div class="av" style="background:var(--navy)"><svg><use href="#car"/></svg></div>
+          <div class="body"><div class="t"><b>車</b><span class="pill stop">停車中 23分</span></div>
+          <div class="a">東京都千代田区丸の内1丁目9</div><div class="m"><span>電池 80%</span><span>エンジン OFF</span><span>1分前</span></div></div></div>
+        <div class="item"><div class="av" style="background:var(--teal)"><svg><use href="#bike"/></svg></div>
+          <div class="body"><div class="t"><b>バイク</b><span class="pill move">走行中 42km/h</span></div>
+          <div class="a">東京都中央区八重洲2丁目</div><div class="m"><span>電池 64%</span><span>エンジン ON</span><span>たった今</span></div></div></div>
+        <div class="item"><div class="av" style="background:#7A8599"><svg><use href="#box"/></svg></div>
+          <div class="body"><div class="t"><b>荷物</b><span class="pill off">オフライン</span></div>
+          <div class="a">神奈川県横浜市西区みなとみらい</div><div class="m"><span>電池 12%</span><span>3日前</span></div></div></div>
+        <div class="item" style="border:1.5px dashed #C9D1DE;background:transparent;justify-content:center;color:var(--navy);font-size:13px;font-weight:700">＋ 端末を追加</div>
+      </div>
+    </div></div>
+    <figcaption>③ ホーム（一覧）<span>全端末の状態をひと目で</span></figcaption>
+  </figure>
+
+  <!-- 4 履歴再生 -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+      <div class="appbar">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="title">履歴再生　車</span>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+      </div>
+      <div class="chips"><span class="chip on">今日</span><span class="chip">昨日</span><span class="chip">10/22（木）</span><span class="chip">日付を選ぶ</span></div>
+      <div class="map">
+        <svg class="bgmap"><use href="#map"/></svg>
+        <svg style="position:absolute;inset:0" viewBox="0 0 280 300" preserveAspectRatio="none" width="100%" height="100%">
+          <path d="M30 250 C 60 240, 80 200, 100 170 S 110 110, 150 100 S 210 120, 230 80 L 250 40" fill="none" stroke="var(--teal)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="30" cy="250" r="8" fill="var(--green)" stroke="#fff" stroke-width="3"/>
+          <circle cx="250" cy="40" r="8" fill="var(--red)" stroke="#fff" stroke-width="3"/>
+          <g font-size="10" font-weight="700" fill="#fff" text-anchor="middle">
+            <circle cx="100" cy="170" r="9" fill="var(--navy)"/><text x="100" y="173.5">1</text>
+            <circle cx="150" cy="100" r="9" fill="var(--navy)"/><text x="150" y="103.5">2</text>
+            <circle cx="230" cy="80" r="9" fill="var(--navy)"/><text x="230" y="83.5">3</text>
+          </g>
+        </svg>
+        <div class="marker" style="left:128px;top:118px"><div class="dot" style="width:28px;height:28px"><svg style="width:15px;height:15px"><use href="#car"/></svg></div></div>
+        <span class="attr">地理院タイル</span>
+      </div>
+      <div class="panel">
+        <div class="kpis"><div><b>42.3 km</b><small>走行距離</small></div><div><b>1時間12分</b><small>走行時間</small></div><div><b>68 km/h</b><small>最高速度</small></div></div>
+        <div class="now"><span>09:42　38 km/h</span><span>停車 3 回</span></div>
+        <div class="player">
+          <div class="play"><svg viewBox="0 0 24 24" width="14" height="14" fill="#fff"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div>
+          <div class="bar"><i></i><u></u></div>
+          <span class="speed">4x</span>
+        </div>
+      </div>
+    </div></div>
+    <figcaption>④ 履歴再生<span>ルート・停車地点・距離・速度切替</span></figcaption>
+  </figure>
+
+  <!-- 5 アラーム -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+      <div class="appbar">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="title">アラーム</span>
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">SOS</span><span class="chip">エリア</span><span class="chip">速度</span><span class="chip">電源</span></div>
+      <div class="alarms">
+        <div class="day">今日　10月24日（土）</div>
+        <div class="al unread"><span class="ic" style="background:var(--red)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+          <div><b>SOS</b><small>車・東京都千代田区丸の内1丁目</small></div><time>12:31</time></div>
+        <div class="al unread"><span class="ic" style="background:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 14l4-4M3.3 19a10 10 0 1 1 17.4 0"/></svg></span>
+          <div><b>速度超過（85 km/h）</b><small>バイク・首都高速都心環状線</small></div><time>11:05</time></div>
+        <div class="al unread"><span class="ic" style="background:#3B82C4"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/><path d="M12 8v8M8 12h8"/></svg></span>
+          <div><b>「自宅」エリアから出ました</b><small>車・東京都文京区本郷3丁目</small></div><time>08:12</time></div>
+        <div class="day">昨日　10月23日（金）</div>
+        <div class="al"><span class="ic" style="background:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span>
+          <div><b>電源が切断されました</b><small>荷物・神奈川県横浜市西区</small></div><time>21:47</time></div>
+        <div class="al"><span class="ic" style="background:var(--gray)"><svg class="ico" viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg></span>
+          <div><b>通信が途絶えました</b><small>荷物・神奈川県横浜市西区</small></div><time>21:52</time></div>
+      </div>
+    </div></div>
+    <figcaption>⑤ アラーム<span>種類別に色分け・通知タップで詳細へ</span></figcaption>
+  </figure>
+
+  <!-- 6 ジオフェンス -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+      <div class="appbar">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+        <span class="title">エリアの設定</span>
+        <span style="font-size:13px;color:var(--navy);font-weight:700">保存</span>
+      </div>
+      <div class="map">
+        <svg class="bgmap"><use href="#map"/></svg>
+        <svg style="position:absolute;inset:0" width="100%" height="100%">
+          <circle cx="50%" cy="48%" r="78" fill="rgba(31,74,133,.16)" stroke="var(--navy)" stroke-width="2.5" stroke-dasharray="7 5"/>
+          <line x1="50%" y1="48%" x2="calc(50% + 78px)" y2="48%" stroke="var(--navy)" stroke-width="2"/>
+        </svg>
+        <div class="marker" style="left:50%;top:48%"><div class="dot" style="width:22px;height:22px;background:var(--red)"></div></div>
+        <div style="position:absolute;left:calc(50% + 14px);top:calc(48% - 22px);font-size:11px;font-weight:700;color:var(--navy);background:#fff;padding:1px 6px;border-radius:6px">300 m</div>
+        <div style="position:absolute;left:10px;top:10px;display:flex;gap:6px"><span class="chip on" style="background:var(--navy)">円</span><span class="chip" style="background:#fff">多角形</span></div>
+        <span class="attr">地理院タイル</span>
+      </div>
+      <div class="sheet">
+        <div class="field"><small>エリア名</small><div>自宅</div></div>
+        <div class="slider"><span>半径</span><div class="bar"><i></i><u></u></div><b>300 m</b></div>
+        <div class="toggles"><div class="tg">入ったとき<span class="sw on"></span></div><div class="tg">出たとき<span class="sw on"></span></div></div>
+        <div class="field"><small>対象の端末</small><div>車、バイク</div></div>
+      </div>
+    </div></div>
+    <figcaption>⑥ ジオフェンス（エリア）<span>円・多角形、出入りで通知</span></figcaption>
+  </figure>
+
+</div>
+
+<footer>画面イメージです。実際のデザインは開発中に調整します。　© TrackOne Japan</footer>
+</body>
+</html>

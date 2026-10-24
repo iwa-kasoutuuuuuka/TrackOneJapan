@@ -8,26 +8,39 @@
 
 .PARAMETER TestMode
   テスト用 PC 向け。電源設定・Windows Update 設定・ファイアウォール・タスクスケジューラ・Tailscale を変更しません。
+  （C:\TrackOneServer のアクセス権の設定は行います）
 
 .PARAMETER DryRun
   実際には何も変更せず、実行内容だけを表示します。
 
 .PARAMETER ConfigPath
-  設定ファイルのパス（省略時はこのフォルダの config.psd1）。
+  設定ファイルのパス。
+  省略時: インストール済みの C:\TrackOneServer\config\config.psd1 があればそれを使います（上書きしません）。
+          まだ無ければ、このフォルダの config.psd1 を使い、C:\TrackOneServer\config にコピーします。
+  指定時: 指定したファイルを C:\TrackOneServer\config\config.psd1 にコピーして使います。
+
+.PARAMETER AllowDowngrade
+  設定の TraccarVersion がインストール済みの Traccar より古い場合でも、古いバージョンを入れ直します。
+  （通常は誤操作を防ぐため中止します）
 
 .EXAMPLE
-  # 本番 PC
+  # 本番 PC（初回）
   powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 .EXAMPLE
   # テスト PC
   powershell -ExecutionPolicy Bypass -File .\install.ps1 -TestMode
+
+.EXAMPLE
+  # 設定を変えたあとの再実行（インストール済みの設定を使う）
+  powershell -ExecutionPolicy Bypass -File C:\TrackOneServer\scripts\install.ps1
 #>
 [CmdletBinding()]
 param(
     [switch] $TestMode,
     [switch] $DryRun,
-    [string] $ConfigPath
+    [string] $ConfigPath,
+    [switch] $AllowDowngrade
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -54,23 +67,51 @@ $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
 if ($build -lt 22000) { Write-TOLog "Windows 11 ではありません（ビルド $build）。続行しますが動作保証外です。" -Level WARN -Name $LogName }
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget がありません。Microsoft Store で「アプリ インストーラー」を更新してください。' }
 
-if (-not $ConfigPath) { $ConfigPath = Join-Path $PSScriptRoot 'config.psd1' }
-if (-not (Test-Path $ConfigPath)) {
-    throw "設定ファイルがありません: $ConfigPath`nconfig.example.psd1 を config.psd1 にコピーして編集してから、もう一度実行してください。"
+# 設定ファイルの決定（インストール済みの設定を、うっかり古いもので上書きしないように）
+$installedConfig = Join-Path $TOConfigDir 'config.psd1'
+$copyConfig = $false
+if ($ConfigPath) {
+    if (-not (Test-Path $ConfigPath)) { throw "設定ファイルがありません: $ConfigPath" }
+    $ConfigPath = (Resolve-Path $ConfigPath).Path
+    $copyConfig = ($ConfigPath -ne $installedConfig)
+} elseif (Test-Path $installedConfig) {
+    $ConfigPath = $installedConfig
+} else {
+    $ConfigPath = Join-Path $PSScriptRoot 'config.psd1'
+    if (-not (Test-Path $ConfigPath)) {
+        throw "設定ファイルがありません: $ConfigPath`nconfig.example.psd1 を config.psd1 にコピーして編集してから、もう一度実行してください。"
+    }
+    $copyConfig = $true
 }
 $cfg = Get-TOConfig -Path $ConfigPath
 $mode = '本番'
 if ($TestMode) { $mode = 'テスト' }
 Write-TOLog "=== TrackOneJapan サーバーのインストール開始（$mode モード）===" -Name $LogName
+if ($copyConfig) { Write-TOLog "設定ファイル: $ConfigPath（$installedConfig にコピーして使います）" -Name $LogName }
+else { Write-TOLog "設定ファイル: $ConfigPath（インストール済みの設定を使います）" -Name $LogName }
+
+# Traccar のダウングレード防止（更新済みの Traccar を古い設定で入れ直すと、移行済みの DB が壊れることがある）
+$installedVersion = Get-InstalledTraccarVersion
+if ($installedVersion -and (ConvertTo-TOVersion $cfg.TraccarVersion) -lt (ConvertTo-TOVersion $installedVersion)) {
+    $msg = "設定の TraccarVersion（$($cfg.TraccarVersion)）が、インストール済みの Traccar（$installedVersion）より古いです。"
+    if ($AllowDowngrade) {
+        Write-TOLog "$msg -AllowDowngrade が指定されたため、古いバージョンを入れ直します（入れ替え前にバックアップします）。" -Level WARN -Name $LogName
+    } elseif ($DryRun) {
+        Write-TOLog "$msg 実際に実行すると、ここで中止します。" -Level WARN -Name $LogName
+    } else {
+        throw "$msg`n設定ファイル（$ConfigPath）の TraccarVersion を $installedVersion に直してから再実行してください。どうしても古いバージョンに戻す場合は -AllowDowngrade を付けてください。"
+    }
+}
 
 # ============================================================
 # 1. フォルダとスクリプトの配置
 # ============================================================
-Step 'フォルダを作成し、スクリプトと設定をコピー' {
-    foreach ($d in $TORoot, $TOConfigDir, $TOScriptsDir, $TOBackupDir, $TOLogDir, $TOStateDir) {
+Step 'フォルダを作成し、スクリプトと設定をコピー（アクセス権を管理者と SYSTEM に限定）' {
+    foreach ($d in $TORoot, $TOConfigDir, $TOScriptsDir, $TOBackupDir, $TOLogDir, $TOStateDir, $TOWebOverrideDir) {
         if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force $d | Out-Null }
     }
-    Initialize-SecretsDir
+    # 一般ユーザーが SYSTEM で動くスクリプトを書き換えたり、バックアップを読んだりできないようにする
+    Set-TOServerAcl -InstallerSid ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
     $src = (Resolve-Path $PSScriptRoot).Path
     if ($src -ne (Resolve-Path $TOScriptsDir).Path) {
         Get-ChildItem -Path $src -File | Where-Object { $_.Extension -in '.ps1', '.template', '.ico' -or $_.Name -eq 'config.example.psd1' } |
@@ -80,9 +121,12 @@ Step 'フォルダを作成し、スクリプトと設定をコピー' {
         if (-not (Test-Path $webDst)) { New-Item -ItemType Directory -Force $webDst | Out-Null }
         Copy-Item -Path (Join-Path $webSrc '*') -Destination $webDst -Force
     }
-    $dstConfig = Join-Path $TOConfigDir 'config.psd1'
-    if ((Resolve-Path $ConfigPath).Path -ne $dstConfig) { Copy-Item -Path $ConfigPath -Destination $dstConfig -Force }
+    if ($copyConfig) { Copy-Item -Path $ConfigPath -Destination $installedConfig -Force }
 }
+
+# ここから先は、死活監視（healthcheck.ps1）が Traccar を勝手に起動・再起動しないようにする
+if (-not $DryRun) { Enter-TOMaintenance 'install' }
+try {
 
 # ============================================================
 # 2. パスワードの用意（初回のみ自動生成）
@@ -97,25 +141,39 @@ Step 'データベース用パスワードを用意' {
 # ============================================================
 $pgService = Get-PgServiceName $cfg
 Step "PostgreSQL $($cfg.PostgresMajor) をインストール（未導入の場合）" {
+    $fresh = $false
     if (Get-Service -Name $pgService -ErrorAction SilentlyContinue) {
         Write-TOLog 'PostgreSQL は導入済み' -Name $LogName
-        if (-not (Get-TOSecret 'db-postgres-password-verified')) {
-            # 以前から入っていた PostgreSQL の場合、このスクリプトが生成したパスワードとは一致しない
-            try { Invoke-Psql -Cfg $cfg -Sql 'SELECT 1' -Password (Get-TOSecret 'db-postgres-password') | Out-Null }
-            catch {
-                throw "既存の PostgreSQL の postgres パスワードが一致しません。$TOSecretsDir\db-postgres-password.txt に正しいパスワードを書いてから再実行してください。"
-            }
-        }
     } else {
         $pw = Get-TOSecret 'db-postgres-password'
+        # 注意: この初期パスワードは winget のログに残るため、インストール直後に別のパスワードへ変更する
         $override = "--mode unattended --unattendedmodeui none --superpassword $pw --serverport $($cfg.PostgresPort) --disable-components stackbuilder"
         & winget install --id $cfg.PostgresPackageId -e --silent --accept-package-agreements --accept-source-agreements --override $override
         if ($LASTEXITCODE -ne 0) { throw "PostgreSQL のインストールに失敗しました（winget 終了コード $LASTEXITCODE）。" }
         Start-Sleep -Seconds 5
         if (-not (Get-Service -Name $pgService -ErrorAction SilentlyContinue)) { throw "$pgService サービスが見つかりません。" }
+        $fresh = $true
+    }
+    if ((Get-Service $pgService).Status -ne 'Running') { Start-Service $pgService }
+
+    if ($fresh -or -not (Get-TOSecret 'db-postgres-password-verified')) {
+        # 以前から入っていた PostgreSQL の場合、このスクリプトが生成したパスワードとは一致しない
+        if (-not (Test-TOPgLogin -Cfg $cfg -Password (Get-TOSecret 'db-postgres-password'))) {
+            $hint = ''
+            if (Get-TOSecret 'db-postgres-password-new') { $hint = "（パスワード変更の途中で止まった場合は $TOSecretsDir\db-postgres-password-new.txt の内容が正しいパスワードです）" }
+            throw "PostgreSQL の postgres パスワードが一致しません。$TOSecretsDir\db-postgres-password.txt に正しいパスワードを書いてから再実行してください。$hint"
+        }
+    }
+    if ($fresh) {
+        $leaked = @(Find-TOSecretInLogs -Secret (Get-TOSecret 'db-postgres-password'))
+        Write-TOLog 'postgres のパスワードを変更します（初期パスワードは winget のログに残るため）' -Name $LogName
+        Update-TOPostgresPassword -Cfg $cfg
+        if (-not (Test-TOPgLogin -Cfg $cfg -Password (Get-TOSecret 'db-postgres-password'))) { throw '変更後の postgres パスワードでログインできません。' }
+        foreach ($f in $leaked) {
+            Write-TOLog "初期パスワード（変更済みで今は使えません）が残っているログ: $f  不要なら削除してください: Remove-Item `"$f`"" -Level WARN -Name $LogName
+        }
     }
     Set-TOSecret 'db-postgres-password-verified' 'yes'
-    if ((Get-Service $pgService).Status -ne 'Running') { Start-Service $pgService }
     Set-TOServiceRecovery -ServiceName $pgService
 }
 
@@ -131,16 +189,14 @@ Step 'PostgreSQL を PC 内からの接続だけに制限' {
 
 Step "Traccar 用のデータベース「$($cfg.DatabaseName)」とユーザー「$($cfg.DatabaseUser)」を作成" {
     $su = Get-TOSecret 'db-postgres-password'
-    $tpw = Get-TOSecret 'db-traccar-password'
     $user = $cfg.DatabaseUser
     $db = $cfg.DatabaseName
     if ($user -notmatch '^[a-z_][a-z0-9_]*$' -or $db -notmatch '^[a-z_][a-z0-9_]*$') { throw 'DatabaseUser / DatabaseName は英小文字・数字・_ のみ使えます。' }
     $exists = Invoke-Psql -Cfg $cfg -Sql "SELECT 1 FROM pg_roles WHERE rolname = '$user'" -Password $su
-    if ($exists -eq '1') {
-        Invoke-Psql -Cfg $cfg -Sql "ALTER ROLE $user WITH LOGIN PASSWORD '$tpw'" -Password $su | Out-Null
-    } else {
-        Invoke-Psql -Cfg $cfg -Sql "CREATE ROLE $user WITH LOGIN PASSWORD '$tpw'" -Password $su | Out-Null
+    if ($exists -ne '1') {
+        Invoke-Psql -Cfg $cfg -Sql "CREATE ROLE $user WITH LOGIN" -Password $su | Out-Null
     }
+    Set-TOPgRolePassword -Cfg $cfg -Role $user -NewPassword (Get-TOSecret 'db-traccar-password') -SuPassword $su
     $dbExists = Invoke-Psql -Cfg $cfg -Sql "SELECT 1 FROM pg_database WHERE datname = '$db'" -Password $su
     if ($dbExists -ne '1') {
         Invoke-Psql -Cfg $cfg -Sql "CREATE DATABASE $db OWNER $user ENCODING 'UTF8' TEMPLATE template0" -Password $su | Out-Null
@@ -155,20 +211,35 @@ Step "Traccar $($cfg.TraccarVersion) をインストール（未導入・別バ�
     if ($installed -eq $cfg.TraccarVersion) {
         Write-TOLog "Traccar $installed は導入済み" -Name $LogName
     } else {
-        if (Get-Service -Name $TraccarService -ErrorAction SilentlyContinue) { Stop-Service $TraccarService -Force -ErrorAction SilentlyContinue }
-        Install-TraccarPackage -Version $cfg.TraccarVersion
+        # 先にダウンロードする（失敗しても Traccar は動いたまま）
+        $pkg = Get-TraccarPackage -Version $cfg.TraccarVersion
+        try {
+            if (Test-TODatabaseHasTraccar -Cfg $cfg) {
+                Write-TOLog '既存のデータがあるため、Traccar を入れ替える前にバックアップします' -Name $LogName
+                & (Join-Path $PSScriptRoot 'backup.ps1') -NoPrune
+                if ($LASTEXITCODE -ne 0) { throw 'バックアップに失敗したため、Traccar の入れ替えを中止しました。' }
+            }
+            Stop-TOService -Name $TraccarService
+            Install-TraccarPackage -Package $pkg
+        } finally {
+            Remove-TraccarPackage $pkg
+        }
     }
 }
 
 Step 'Traccar の設定（traccar.xml）とオリジナルアイコンを適用' {
     $template = Join-Path $PSScriptRoot 'traccar.xml.template'
-    if (Get-Service -Name $TraccarService -ErrorAction SilentlyContinue) { Stop-Service $TraccarService -Force -ErrorAction SilentlyContinue }
+    Stop-TOService -Name $TraccarService
     Install-TraccarConfig -Cfg $cfg -TemplatePath $template
     if (-not (Test-Path $TOWebOverrideDir)) { New-Item -ItemType Directory -Force $TOWebOverrideDir | Out-Null }
     Copy-Item -Path (Join-Path $PSScriptRoot 'web-override\*') -Destination $TOWebOverrideDir -Force
     Copy-Item -Path (Join-Path $PSScriptRoot 'trackone.ico') -Destination $TOIconPath -Force
     # Traccar は PostgreSQL の起動後に起動する
     Set-TOServiceRecovery -ServiceName $TraccarService -DependsOn $pgService
+    if (Test-Path $TORestoreFailedFlag) {
+        Write-TOLog "以前の復元失敗の目印を消して Traccar を起動します: $TORestoreFailedFlag" -Level WARN -Name $LogName
+        Remove-Item $TORestoreFailedFlag -Force
+    }
     Start-Service $TraccarService
 }
 
@@ -176,13 +247,15 @@ Step 'Traccar の起動を確認（初回はデータベース作成のため 1�
     if (-not (Wait-TraccarApi -Cfg $cfg -TimeoutSec 300)) {
         throw "Traccar が起動しません。ログを確認してください: $TraccarDir\logs\tracker-server.log"
     }
-    if (-not (Test-TcpPort -Port $cfg.Gt06Port)) { Write-TOLog "GT06 ポート $($cfg.Gt06Port) が応答しません" -Level WARN -Name $LogName }
+    if ((Test-TOProtocolEnabled $cfg 'gt06') -and -not (Test-TcpPort -Port $cfg.Gt06Port)) {
+        Write-TOLog "GT06 ポート $($cfg.Gt06Port) が応答しません" -Level WARN -Name $LogName
+    }
     Write-TOLog 'Traccar は正常に起動しています' -Level OK -Name $LogName
 }
 
 Step '管理画面にタイトル・テーマ色・ロゴを設定し、デスクトップにショートカットを作成' {
     Install-TOBranding -Cfg $cfg -SourceDir $PSScriptRoot
-    Restart-Service $TraccarService -Force
+    Restart-TOService -Name $TraccarService
     if (-not (Wait-TraccarApi -Cfg $cfg -TimeoutSec 300)) { throw 'Traccar の再起動後に応答がありません。' }
     New-TOShortcut -Cfg $cfg
 }
@@ -263,6 +336,10 @@ if ($TestMode) {
     }
 }
 
+} finally {
+    if (-not $DryRun) { Exit-TOMaintenance }
+}
+
 # ============================================================
 # 6. 完了
 # ============================================================
@@ -276,11 +353,16 @@ $next = @"
 "@
 if (-not $TestMode) {
     $next += "`r`n" + @"
-  3. Tailscale にログインし、アプリ用の HTTPS 公開を有効化:
-       & "`$env:ProgramFiles\Tailscale\tailscale.exe" up
+  3. Tailscale にログインし、アプリ用の HTTPS 公開を有効化（--unattended は、再起動後に誰もログインしなくても接続を保つため）:
+       & "`$env:ProgramFiles\Tailscale\tailscale.exe" up --unattended
        & "`$env:ProgramFiles\Tailscale\tailscale.exe" funnel --bg http://127.0.0.1:$($cfg.WebPort)
   4. ルーターでポート転送: 外部ポート → この PC の $($cfg.Gt06Port)/TCP
   5. 発信機に SMS で接続先を設定（docs/04_サーバー構築手順.md 参照）
 "@
 }
+$next += "`r`n" + @"
+
+設定を変えたときは C:\TrackOneServer\config\config.psd1 を（管理者として開いたメモ帳で）編集し、次を実行:
+  powershell -ExecutionPolicy Bypass -File C:\TrackOneServer\scripts\install.ps1$(if ($TestMode) { ' -TestMode' })
+"@
 Write-Host $next

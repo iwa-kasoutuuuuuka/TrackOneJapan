@@ -26,6 +26,7 @@
     BackupTime     = '03:00'           # 毎日の実行時刻
     BackupKeepDays = 14                # 保持日数
     BackupCopyTo   = ''                # 追加のコピー先（例: 'D:\TrackOneBackup'、OneDrive のフォルダ）。空ならコピーしない
+                                       # ※ .dump には全データが入るので、他の人が読めない場所にしてください
 
     # --- 監視 ---
     HealthCheckIntervalMinutes = 5

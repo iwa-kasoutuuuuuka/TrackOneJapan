@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 開発用: Flutter ツールとの通信に必要 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 開発用ビルドだけ http:// を許可（PC 内のテスト用 Traccar に USB 経由でつなぐため）。
+         リリース版は https:// のみ。 -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>

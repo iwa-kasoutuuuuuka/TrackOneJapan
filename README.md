@@ -29,7 +29,7 @@ WanWay 社の GPS 発信機（TrackerOne アプリで使う端末）を、**メ�
 | サーバー設計・構築スクリプト | 完了（[03](docs/03_サーバー設計.md)、[04](docs/04_サーバー構築手順.md)） |
 | テスト PC での動作確認（install.ps1 -TestMode） | 完了（Traccar 起動・位置受信・アイコン反映・バックアップ・死活監視） |
 | 実機（発信機）での接続確認 | 未実施 |
-| 日本語スマホアプリ | 設計完了（[05](docs/05_アプリ設計.md)、[画面イメージ](docs/mockups/app-mockups.png)）・開発は未着手 |
+| 日本語スマホアプリ | 段階1 完了（ログイン・地図・一覧・端末カード・リアルタイム更新、[画面](docs/screenshots/app-stage1.png)）。エミュレーターで確認済み、実機スマホは未確認。[app/README.md](app/README.md) |
 
 ## サーバーの構築（概要）
 
@@ -52,6 +52,7 @@ WanWay 社の GPS 発信機（TrackerOne アプリで使う端末）を、**メ�
 docs/              解析レポート・設計書・構築手順
 server/windows/    Windows 用のインストール・運用スクリプト
 assets/icon/       オリジナルアイコン（SVG 原本と各サイズの PNG / ICO）
+app/               スマホアプリ（Flutter）
 ```
 
 ## 使用しているもの

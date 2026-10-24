@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
@@ -26,10 +27,17 @@ class PhoneNotifier {
   Future<void> init() async {
     if (_ready || kIsWeb) return;
     await _plugin.initialize(
-      settings: const InitializationSettings(
+      settings: InitializationSettings(
         // オリジナルの通知アイコン（白一色のシルエット）
-        android: AndroidInitializationSettings('ic_stat_trackone'),
-        iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
+        android: const AndroidInitializationSettings('ic_stat_trackone'),
+        iOS: const DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
+        // Windows 版（PC アプリ）：通知センターに出すアプリ名とオリジナルアイコン
+        windows: WindowsInitializationSettings(
+          appName: 'TrackOne Japan',
+          appUserModelId: 'TrackOneJapan.App',
+          guid: '6f0b6f3e-2a7c-4c1e-9b8e-3d5a1f2c7e41',
+          iconPath: _windowsIconPath(),
+        ),
       ),
       onDidReceiveNotificationResponse: (r) {
         final id = int.tryParse(r.payload ?? '');
@@ -48,6 +56,14 @@ class PhoneNotifier {
       final id = int.tryParse(payload);
       if (id != null) Future.delayed(const Duration(seconds: 1), () => onTap?.call(id));
     }
+  }
+
+  /// Windows 版：実行ファイルと一緒に配置されるアイコン画像の場所
+  static String? _windowsIconPath() {
+    if (kIsWeb || !Platform.isWindows) return null;
+    final dir = File(Platform.resolvedExecutable).parent.path;
+    final path = '$dir\\data\\flutter_assets\\assets\\icon\\icon-512.png';
+    return File(path).existsSync() ? path : null;
   }
 
   /// Android 13 以降は通知の許可が必要

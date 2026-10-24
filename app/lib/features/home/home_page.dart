@@ -11,6 +11,7 @@ import '../settings/settings_page.dart';
 import 'device_card.dart';
 import 'device_list_view.dart';
 import 'map_view.dart';
+import 'wide_home_layout.dart';
 
 /// ホーム（地図／一覧の切り替え）
 class HomePage extends ConsumerStatefulWidget {
@@ -36,6 +37,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final s = ref.watch(trackingProvider);
     final unread = ref.watch(alarmProvider.select((a) => a.unreadCount));
+    final wide = isWideLayout(context); // PC など広い画面は一覧と地図を並べる
 
     return Scaffold(
       appBar: AppBar(
@@ -44,7 +46,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           icon: const Icon(Icons.person_outline),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsPage())),
         ),
-        title: SegmentedButton<int>(
+        title: wide ? const Text('TrackOne Japan') : SegmentedButton<int>(
           showSelectedIcon: false,
           style: SegmentedButton.styleFrom(
             visualDensity: VisualDensity.compact,
@@ -76,7 +78,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           ? const Center(child: CircularProgressIndicator())
           : s.error != null && s.devices.isEmpty
               ? _ErrorView(message: s.error!, onRetry: () => ref.read(trackingProvider.notifier).reload())
-              : IndexedStack(
+              : wide ? const WideHomeLayout() : IndexedStack(
                   index: _tab,
                   children: [
                     const Column(children: [Expanded(child: MapView()), DeviceCard()]),

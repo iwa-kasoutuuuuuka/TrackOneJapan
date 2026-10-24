@@ -122,9 +122,14 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-        child: Column(children: children),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        // ListTile のタップ効果が見えるよう、背景は Material で塗る
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: children),
+        ),
       );
 }

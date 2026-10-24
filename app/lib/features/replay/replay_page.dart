@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../core/api/traccar_client.dart';
 import '../../core/state/auth.dart';
@@ -15,6 +12,7 @@ import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
 import '../../models/models.dart';
+import '../../platform/save_gpx.dart';
 import '../../widgets/base_map.dart';
 import '../home/device_status.dart';
 import 'replay_logic.dart';
@@ -165,15 +163,15 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
   Future<void> _exportGpx(String deviceName) async {
     if (_route.isEmpty) return;
     final ymd = '${_day.year}${_day.month.toString().padLeft(2, '0')}${_day.day.toString().padLeft(2, '0')}';
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/trackone_${safeFileName(deviceName)}_$ymd.gpx');
-    await file.writeAsString(buildGpx('$deviceName $ymd', _route));
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: 'application/gpx+xml')],
-        subject: '$deviceName の走行記録（${_day.month}月${_day.day}日）',
-      ),
+    // スマホは共有シート、Windows は保存ダイアログ（lib/platform/save_gpx.dart）
+    final saved = await exportGpxFile(
+      fileName: 'trackone_${safeFileName(deviceName)}_$ymd.gpx',
+      gpx: buildGpx('$deviceName $ymd', _route),
+      subject: '$deviceName の走行記録（${_day.month}月${_day.day}日）',
     );
+    if (saved != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存しました: $saved')));
+    }
   }
 
   // ---------- 画面 ----------

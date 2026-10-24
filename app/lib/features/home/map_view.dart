@@ -37,6 +37,7 @@ class _MapViewState extends ConsumerState<MapView> {
   }
 
   void _centerOnSelected({bool force = false}) {
+    if (!mounted) return; // 画面の切り替え（ウィンドウ幅の変更・ログアウト）で消えた後に呼ばれることがある
     final s = ref.read(trackingProvider);
     final id = s.selectedId;
     final p = id == null ? null : s.positions[id];

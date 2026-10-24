@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<!--
+  TrackOneJapan 用 Traccar 設定（install.ps1 / update-traccar.ps1 が自動生成します。直接編集しないでください）
+  原本: C:\TrackOneServer\config\traccar.xml
+  ドキュメント: https://www.traccar.org/configuration-file/
+-->
+<properties>
+
+    <!-- データベース（PostgreSQL） -->
+    <entry key='database.driver'>org.postgresql.Driver</entry>
+    <entry key='database.url'>jdbc:postgresql://127.0.0.1:{{POSTGRES_PORT}}/{{DATABASE_NAME}}</entry>
+    <entry key='database.user'>{{DATABASE_USER}}</entry>
+    <entry key='database.password'>{{DATABASE_PASSWORD}}</entry>
+
+    <!-- 管理画面・API は PC 内だけで待ち受け（外部公開は Tailscale Funnel 経由） -->
+    <entry key='web.address'>127.0.0.1</entry>
+    <entry key='web.port'>{{WEB_PORT}}</entry>
+
+    <!-- オリジナルアイコン・ロゴ（ファビコン、ホーム画面アイコン等を上書き） -->
+    <entry key='web.override'>{{WEB_OVERRIDE}}</entry>
+
+    <!-- 使う通信方式だけ受け付ける -->
+    <entry key='protocols.enable'>{{PROTOCOLS}}</entry>
+    <entry key='gt06.port'>{{GT06_PORT}}</entry>
+    <entry key='osmand.port'>{{OSMAND_PORT}}</entry>
+
+    <!-- 住所表示（日本語） -->
+    <entry key='geocoder.enable'>{{GEOCODER_ENABLED}}</entry>
+    <entry key='geocoder.type'>nominatim</entry>
+    <entry key='geocoder.language'>{{GEOCODER_LANGUAGE}}</entry>
+
+    <!-- ログ -->
+    <entry key='logger.rotate'>true</entry>
+
+</properties>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>TrackOne Japan</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F4A85"/>
+      <stop offset="1" stop-color="#0D2346"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4ECF7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 走行ルート（点線） -->
+  <path d="M84 448 C 140 380, 196 470, 250 428" fill="none" stroke="#35D0BA" stroke-width="24" stroke-linecap="round" stroke-dasharray="0.1 42"/>
+  <!-- 位置ピン -->
+  <path d="M256 420 C 212 364 132 290 132 206 A 124 124 0 0 1 380 206 C 380 290 300 364 256 420 Z" fill="url(#pin)"/>
+  <!-- 日の丸 -->
+  <circle cx="256" cy="206" r="62" fill="#E63946"/>
+</svg>

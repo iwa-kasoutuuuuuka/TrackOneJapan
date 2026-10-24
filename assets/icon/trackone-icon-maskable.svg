@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Android のアダプティブアイコン用：角丸なし・中央 70% にまとめる -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F4A85"/>
+      <stop offset="1" stop-color="#0D2346"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(0.68) translate(-256 -270)">
+    <path d="M84 448 C 140 380, 196 470, 250 428" fill="none" stroke="#35D0BA" stroke-width="24" stroke-linecap="round" stroke-dasharray="0.1 42"/>
+    <path d="M256 420 C 212 364 132 290 132 206 A 124 124 0 0 1 380 206 C 380 290 300 364 256 420 Z" fill="#FFFFFF"/>
+    <circle cx="256" cy="206" r="62" fill="#E63946"/>
+  </g>
+</svg>

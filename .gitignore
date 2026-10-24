@@ -1,0 +1,23 @@
+# 他社の APK（著作物のため公開しない）
+apk/
+*.apk
+*.apks
+*.xapk
+
+# 本番用の設定・秘密情報
+server/windows/config.psd1
+secrets/
+*.secret
+*.token
+
+# バックアップ・ログ
+*.dump
+*.log
+logs/
+
+# 開発用
+node_modules/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

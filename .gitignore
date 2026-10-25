@@ -27,3 +27,6 @@ desktop.ini
 
 # Claude の作業用（サブエージェントの worktree）
 .claude/worktrees/
+
+# 配布用にビルドしたファイル（GitHub Releases に置く）
+app/dist/

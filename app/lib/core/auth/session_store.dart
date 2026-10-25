@@ -31,6 +31,12 @@ class SessionStore {
   Future<String?> readMapType() => _s.read(key: _kMapType);
   Future<void> saveMapType(String value) => _s.write(key: _kMapType, value: value);
 
+  static const _kThemeMode = 'theme_mode';
+
+  /// 画面の明るさ（system / light / dark）
+  Future<String?> readThemeMode() => _s.read(key: _kThemeMode);
+  Future<void> saveThemeMode(String value) => _s.write(key: _kThemeMode, value: value);
+
   static const _kLastSeenEvents = 'last_seen_events';
   static const _kPhoneNotify = 'phone_notify';
 

@@ -20,7 +20,7 @@ class GeofenceListPage extends ConsumerWidget {
     final notifyOff = !notify.loading && !notify.isOn('geofenceEnter') && !notify.isOn('geofenceExit');
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(title: const Text('エリア（ジオフェンス）')),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add_location_alt_outlined),
@@ -34,7 +34,7 @@ class GeofenceListPage extends ConsumerWidget {
             Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-              decoration: BoxDecoration(color: const Color(0xFFFFF4E0), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(12)),
               child: Row(children: [
                 const Icon(Icons.notifications_off_outlined, color: Color(0xFFB86200)),
                 const SizedBox(width: 10),
@@ -61,10 +61,10 @@ class GeofenceListPage extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(s.error ?? 'エリアはまだありません', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   '自宅や職場などをエリアとして登録すると、発信機がそのエリアに入ったとき・出たときに通知が届きます。',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12.5, color: AppColors.sub, height: 1.6),
+                  style: TextStyle(fontSize: 12.5, color: context.pal.sub, height: 1.6),
                 ),
               ]),
             )
@@ -73,7 +73,7 @@ class GeofenceListPage extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Material(
-                  color: Colors.white,
+                  color: context.pal.card,
                   borderRadius: BorderRadius.circular(14),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(14),
@@ -93,7 +93,7 @@ class GeofenceListPage extends ConsumerWidget {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(g.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 3),
-                            Text(_shapeLabel(g.area), style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+                            Text(_shapeLabel(g.area), style: TextStyle(fontSize: 12, color: context.pal.sub)),
                             const SizedBox(height: 2),
                             Text(
                               _targets(s.devicesOf(g.id).map((id) => devices[id]?.name).whereType<String>().toList()),

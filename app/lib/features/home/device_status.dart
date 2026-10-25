@@ -40,11 +40,17 @@ class StatusPill extends StatelessWidget {
   final DeviceStatusInfo info;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-        decoration: BoxDecoration(color: info.background, borderRadius: BorderRadius.circular(10)),
-        child: Text(info.label, style: TextStyle(color: info.color, fontSize: 11.5, fontWeight: FontWeight.w700)),
-      );
+  Widget build(BuildContext context) {
+    // 暗い画面では、薄い背景色の代わりに文字色を透かした背景にし、文字を少し明るくする
+    final dark = context.isDark;
+    final fg = dark ? Color.lerp(info.color, Colors.white, 0.25)! : info.color;
+    final bg = dark ? info.color.withValues(alpha: 0.22) : info.background;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(info.label, style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w700)),
+    );
+  }
 }
 
 /// 端末の種類（Traccar の category）→ マーカー画像と色
@@ -89,10 +95,11 @@ String gpsLabel(Position? p) {
   return '弱い';
 }
 
-Color gpsColor(Position? p) {
+/// GPS の表示色。[ink] は普通のときの文字色（画面では `context.pal.ink` を渡す）
+Color gpsColor(Position? p, {Color ink = AppColors.ink}) {
   final l = gpsLabel(p);
   if (l == '—') return AppColors.gray; // データなし
   if (l == '良好') return AppColors.green;
-  if (l == '普通' || l == '受信中') return AppColors.ink;
+  if (l == '普通' || l == '受信中') return ink;
   return AppColors.red;
 }

@@ -52,7 +52,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(
         title: const Text('アラーム'),
         actions: [
@@ -91,7 +91,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
                         const SizedBox(height: 80),
                         const Icon(Icons.notifications_none, size: 48, color: AppColors.gray),
                         const SizedBox(height: 10),
-                        Center(child: Text(s.error ?? '過去 7 日間のアラームはありません', style: const TextStyle(color: AppColors.sub))),
+                        Center(child: Text(s.error ?? '過去 7 日間のアラームはありません', style: TextStyle(color: context.pal.sub))),
                       ])
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
@@ -101,7 +101,7 @@ class _AlarmListPageState extends ConsumerState<AlarmListPage> {
                           if (r is String) {
                             return Padding(
                               padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                              child: Text(r, style: const TextStyle(fontSize: 12, color: AppColors.sub, fontWeight: FontWeight.w700)),
+                              child: Text(r, style: TextStyle(fontSize: 12, color: context.pal.sub, fontWeight: FontWeight.w700)),
                             );
                           }
                           final e = r as TrackerEvent;
@@ -129,7 +129,7 @@ class _AlarmTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Material(
-        color: Colors.white,
+        color: context.pal.card,
         borderRadius: BorderRadius.circular(13),
         child: InkWell(
           borderRadius: BorderRadius.circular(13),
@@ -153,7 +153,7 @@ class _AlarmTile extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(info.title, style: TextStyle(fontSize: 14, fontWeight: unread ? FontWeight.w800 : FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(state.deviceName(event.deviceId), style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+                  Text(state.deviceName(event.deviceId), style: TextStyle(fontSize: 12, color: context.pal.sub)),
                 ]),
               ),
               if (t != null)
@@ -180,7 +180,7 @@ class _Banner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-        decoration: BoxDecoration(color: const Color(0xFFFFF4E0), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
           const Icon(Icons.info_outline, color: Color(0xFFB86200)),
           const SizedBox(width: 10),

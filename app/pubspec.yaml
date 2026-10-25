@@ -1,7 +1,7 @@
 name: trackone_japan
 description: "TrackOne Japan - GPS 発信機の位置を日本語で確認するアプリ"
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.13.7

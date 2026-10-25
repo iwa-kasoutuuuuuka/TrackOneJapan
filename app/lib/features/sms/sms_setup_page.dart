@@ -95,30 +95,30 @@ class _SmsSetupPageState extends ConsumerState<SmsSetupPage> {
     final device = ref.watch(trackingProvider.select((s) => s.devices[widget.deviceId]));
     final phone = device?.phone ?? '';
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(title: const Text('SMS で発信機を設定')),
       body: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: context.pal.card, borderRadius: BorderRadius.circular(14)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(device?.name ?? '端末', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text(phone.isEmpty ? 'SIM の電話番号：未登録（端末の設定で登録すると宛先が自動で入ります）' : 'SIM の電話番号：$phone',
-                style: TextStyle(fontSize: 12.5, color: phone.isEmpty ? AppColors.red : AppColors.sub)),
+                style: TextStyle(fontSize: 12.5, color: phone.isEmpty ? AppColors.red : context.pal.sub)),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '発信機の多くは、決まった文面の SMS で設定を変えられます。文面は機種によって違うため、送る前に説明書や TrackerOne の画面で確認し、必要なら書き換えてください。',
-              style: TextStyle(fontSize: 12, color: AppColors.sub, height: 1.6),
+              style: TextStyle(fontSize: 12, color: context.pal.sub, height: 1.6),
             ),
           ]),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: context.pal.card, borderRadius: BorderRadius.circular(14)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('自分のサーバーの接続先', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+            Text('自分のサーバーの接続先', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             TextField(
               controller: _domain,
@@ -141,7 +141,7 @@ class _SmsSetupPageState extends ConsumerState<SmsSetupPage> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Material(
-              color: Colors.white,
+              color: context.pal.card,
               borderRadius: BorderRadius.circular(14),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
@@ -149,13 +149,13 @@ class _SmsSetupPageState extends ConsumerState<SmsSetupPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(children: [
-                    Icon(t.warning != null ? Icons.swap_horiz : Icons.sms_outlined, color: t.warning != null ? AppColors.orange : AppColors.navy),
+                    Icon(t.warning != null ? Icons.swap_horiz : Icons.sms_outlined, color: t.warning != null ? AppColors.orange : context.pal.brand),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(t.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 2),
-                        Text(t.description, style: const TextStyle(fontSize: 11.5, color: AppColors.sub)),
+                        Text(t.description, style: TextStyle(fontSize: 11.5, color: context.pal.sub)),
                       ]),
                     ),
                     const Icon(Icons.chevron_right, color: AppColors.gray),
@@ -195,7 +195,7 @@ class _EditDialogState extends State<_EditDialog> {
           if (widget.template.warning != null) ...[
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFFFF4E0), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(10)),
               child: Text(widget.template.warning!, style: const TextStyle(fontSize: 12)),
             ),
             const SizedBox(height: 12),

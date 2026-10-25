@@ -125,7 +125,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: const Color(0xFFFDECEE), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: context.pal.dangerBg, borderRadius: BorderRadius.circular(10)),
                       child: Text(_error!, style: const TextStyle(color: AppColors.red, fontSize: 13)),
                     ),
                   ],

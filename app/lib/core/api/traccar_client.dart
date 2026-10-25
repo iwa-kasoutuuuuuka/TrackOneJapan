@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 
 import '../../models/models.dart';
@@ -56,11 +57,14 @@ class TraccarClient {
   }
 
   /// http:// は PC 内・LAN 内のテスト用だけ許可する（ホスト名ではなく IP アドレスで判定）
-  static bool isAllowedUrl(String url) {
+  /// http:// を使えるか。Android の配布版（リリース版）は OS が暗号化なしの通信を止めるため https:// のみ
+  static bool get httpSupported => kDebugMode || !Platform.isAndroid;
+
+  static bool isAllowedUrl(String url, {bool? allowHttp}) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.isEmpty) return false;
     if (uri.scheme == 'https') return true;
-    if (uri.scheme != 'http') return false;
+    if (uri.scheme != 'http' || !(allowHttp ?? httpSupported)) return false;
     final h = uri.host;
     if (h == 'localhost') return true;
     final ip = InternetAddress.tryParse(h);

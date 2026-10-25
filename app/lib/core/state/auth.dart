@@ -67,7 +67,9 @@ class AuthNotifier extends AsyncNotifier<AuthSession?> {
   Future<void> login({required String server, required String email, required String password}) async {
     final url = TraccarClient.normalizeServerUrl(server);
     if (!TraccarClient.isAllowedUrl(url)) {
-      throw ApiException('URL は https:// で始まる必要があります（http:// は PC・LAN 内のテスト時のみ）');
+      throw ApiException(TraccarClient.httpSupported
+          ? 'URL は https:// で始まる必要があります（http:// は PC・LAN 内のテスト時のみ）'
+          : 'URL は https:// で始まる必要があります（配布版のアプリは http:// に接続できません。自宅の PC でのテストには開発版を使ってください）');
     }
     final client = TraccarClient(url);
     final user = await client.login(email.trim(), password);

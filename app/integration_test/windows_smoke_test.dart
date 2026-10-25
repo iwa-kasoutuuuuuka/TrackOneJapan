@@ -9,6 +9,7 @@
 // 確認すること: ログイン → トークン保存 → 自動ログイン、広い画面のホーム（一覧＋地図）、
 // 端末「テスト車」の履歴再生（停車地点・走行距離などの読み込み）、
 // 位置共有のリンク作成・コマンド画面・端末の設定・SMS の文面コピー（PC は SMS を送れないのでコピー）
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -36,6 +37,8 @@ const _email = String.fromEnvironment('TRACCAR_EMAIL');
 const _password = String.fromEnvironment('TRACCAR_PASSWORD');
 const _screenshotDir = String.fromEnvironment('SCREENSHOT_DIR');
 const _carName = 'テスト車';
+const _carImei = '900001'; // テスト用サーバーの「テスト車」
+const _osmandPort = 5055; // OsmAnd 方式（テスト位置の送信用）
 
 final _shotKey = GlobalKey();
 
@@ -74,6 +77,55 @@ Future<void> screenshot(WidgetTester tester, String name) async {
   });
 }
 
+/// 「昨日」に停車を含む走行記録がなければ、テスト用サーバーに送って作る（日付が変わってもテストが通るように）
+Future<void> ensureYesterdayRoute() async {
+  final http = HttpClient();
+  final auth = 'Basic ${base64.encode(utf8.encode('$_email:$_password'))}';
+  Future<String> get(String path) async {
+    final req = await http.getUrl(Uri.parse('$_url$path'));
+    req.headers.set('Authorization', auth);
+    req.headers.set('Accept', 'application/json');
+    final res = await req.close();
+    return res.transform(utf8.decoder).join();
+  }
+
+  try {
+    final devices = jsonDecode(await get('/api/devices')) as List;
+    final car = devices.firstWhere((d) => d['uniqueId'] == _carImei, orElse: () => null);
+    if (car == null) return;
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day - 1);
+    final from = day.add(const Duration(hours: 9)).toUtc().toIso8601String();
+    final to = day.add(const Duration(hours: 12)).toUtc().toIso8601String();
+    final stops = jsonDecode(await get('/api/reports/stops?deviceId=${car['id']}&from=$from&to=$to')) as List;
+    if (stops.isNotEmpty) return;
+
+    // 9:30 から東京駅 → 皇居の北で 8 分停車 → 新宿方面へ、30 秒ごとに送る
+    var t = day.add(const Duration(hours: 9, minutes: 30));
+    Future<void> send(double lat, double lon, double knots) async {
+      final q = 'id=$_carImei&lat=$lat&lon=$lon&speed=$knots&timestamp=${t.millisecondsSinceEpoch ~/ 1000}';
+      final res = await (await http.getUrl(Uri.parse('http://localhost:$_osmandPort/?$q'))).close();
+      await res.drain<void>();
+    }
+
+    const start = (35.6812, 139.7671), mid = (35.6905, 139.7505), end = (35.6896, 139.7006);
+    for (var i = 0; i <= 20; i++) {
+      await send(start.$1 + (mid.$1 - start.$1) * i / 20, start.$2 + (mid.$2 - start.$2) * i / 20, i == 20 ? 0 : 15);
+      t = t.add(const Duration(seconds: 30));
+    }
+    for (var i = 0; i < 8; i++) {
+      await send(mid.$1, mid.$2, 0);
+      t = t.add(const Duration(minutes: 1));
+    }
+    for (var i = 1; i <= 30; i++) {
+      await send(mid.$1 + (end.$1 - mid.$1) * i / 30, mid.$2 + (end.$2 - mid.$2) * i / 30, 15);
+      t = t.add(const Duration(seconds: 30));
+    }
+  } finally {
+    http.close();
+  }
+}
+
 Widget _app() => RepaintBoundary(key: _shotKey, child: const ProviderScope(child: TrackOneApp()));
 
 void main() {
@@ -81,6 +133,7 @@ void main() {
 
   testWidgets('Windows: ログイン・自動ログイン・広い画面のホーム・履歴再生', (tester) async {
     expect(_email.isNotEmpty && _password.isNotEmpty, isTrue, reason: '--dart-define で TRACCAR_EMAIL / TRACCAR_PASSWORD を渡してください');
+    await tester.runAsync(ensureYesterdayRoute);
 
     // 1) 保存済みのログイン情報を消してから起動 → ログイン画面
     await const FlutterSecureStorage().deleteAll();

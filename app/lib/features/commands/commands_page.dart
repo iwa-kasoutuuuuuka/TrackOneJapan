@@ -67,7 +67,7 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
     final device = ref.watch(trackingProvider.select((s) => s.devices[widget.deviceId]));
     final types = _types;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(title: Text('コマンド　${device?.name ?? ''}', overflow: TextOverflow.ellipsis)),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -76,7 +76,7 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
             Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFFFF4E0), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(12)),
               child: const Text('発信機はオフラインです。送ったコマンドは保留され、通信が戻ったときに送られます。', style: TextStyle(fontSize: 12.5)),
             ),
           if (_error != null)
@@ -88,17 +88,17 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
           else
             for (final t in types) _CommandTile(type: t, onTap: () => _open(t)),
           if (types != null && types.length == 1 && types.first == 'custom')
-            const Padding(
-              padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
               child: Text(
                 'この発信機の通信方式では「任意のコマンド」だけが使えます。GT06 方式の発信機では、エンジン停止・再開なども表示されます。',
-                style: TextStyle(fontSize: 11.5, color: AppColors.sub, height: 1.6),
+                style: TextStyle(fontSize: 11.5, color: context.pal.sub, height: 1.6),
               ),
             ),
           const SizedBox(height: 18),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
-            child: Text('最近の結果（過去 7 日間）', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Text('最近の結果（過去 7 日間）', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
           ),
           if (_history.isEmpty)
             const Padding(padding: EdgeInsets.all(12), child: Text('まだ結果はありません', style: TextStyle(fontSize: 12.5, color: AppColors.gray)))
@@ -107,9 +107,9 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
               Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.pal.card, borderRadius: BorderRadius.circular(12)),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(e.type == 'commandResult' ? Icons.reply : Icons.outbox_outlined, size: 20, color: AppColors.navy),
+                  Icon(e.type == 'commandResult' ? Icons.reply : Icons.outbox_outlined, size: 20, color: context.pal.brand),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -118,7 +118,7 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
                       if (e.attributes['result'] != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 3),
-                          child: SelectableText('${e.attributes['result']}', style: const TextStyle(fontSize: 12.5, color: AppColors.sub)),
+                          child: SelectableText('${e.attributes['result']}', style: TextStyle(fontSize: 12.5, color: context.pal.sub)),
                         ),
                     ]),
                   ),
@@ -143,7 +143,7 @@ class _CommandTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white,
+        color: context.pal.card,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -160,9 +160,9 @@ class _CommandTile extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(info.label, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: info.danger ? AppColors.red : AppColors.ink)),
+                  Text(info.label, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: info.danger ? AppColors.red : context.pal.ink)),
                   const SizedBox(height: 2),
-                  Text(info.description, style: const TextStyle(fontSize: 11.5, color: AppColors.sub), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(info.description, style: TextStyle(fontSize: 11.5, color: context.pal.sub), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ]),
               ),
               const Icon(Icons.chevron_right, color: AppColors.gray),
@@ -264,12 +264,12 @@ class _CommandSheetState extends ConsumerState<_CommandSheet> {
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
-              Icon(info.icon, color: info.danger ? AppColors.red : AppColors.navy),
+              Icon(info.icon, color: info.danger ? AppColors.red : context.pal.brand),
               const SizedBox(width: 8),
               Expanded(child: Text(info.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
             ]),
             const SizedBox(height: 8),
-            Text(info.description, style: const TextStyle(fontSize: 13, color: AppColors.sub, height: 1.5)),
+            Text(info.description, style: TextStyle(fontSize: 13, color: context.pal.sub, height: 1.5)),
             const SizedBox(height: 14),
             if (info.param == CommandParam.text)
               TextField(

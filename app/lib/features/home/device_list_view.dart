@@ -6,6 +6,7 @@ import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
 import '../device/device_edit_page.dart';
+import 'connection_banner.dart';
 import 'device_status.dart';
 
 /// 端末一覧（TrackerOne の list タブに相当）
@@ -28,8 +29,9 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
     final devices = s.sortedDevices.where((d) => _query.isEmpty || d.name.contains(_query) || d.uniqueId.contains(_query)).toList();
 
     return Container(
-      color: AppColors.surface,
+      color: context.pal.surface,
       child: Column(children: [
+        const ConnectionBanner(),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: TextField(
@@ -37,7 +39,7 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
               hintText: '端末を検索（名前・IMEI）',
               prefixIcon: const Icon(Icons.search),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: context.pal.card,
               isDense: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
@@ -66,7 +68,7 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
                       // 画面の描画中に状態を変えないよう、描画後に住所を取りに行く
                       if (s.addresses[d.id] == null && p != null) Future.microtask(() => notifier.ensureAddress(d.id));
                       return Material(
-                        color: Colors.white,
+                        color: context.pal.card,
                         borderRadius: BorderRadius.circular(14),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(14),
@@ -92,7 +94,7 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
                                   ]),
                                   const SizedBox(height: 4),
                                   Text(s.addresses[d.id] ?? (p == null ? '位置情報なし' : '住所を取得中…'),
-                                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: context.pal.sub)),
                                   const SizedBox(height: 4),
                                   Text(
                                     [
@@ -131,12 +133,12 @@ class _AddDeviceTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFC9D1DE), width: 1.5),
+            border: Border.all(color: context.isDark ? const Color(0xFF3A4456) : const Color(0xFFC9D1DE), width: 1.5),
           ),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.add, color: AppColors.navy),
-            SizedBox(width: 6),
-            Text('端末を追加', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.add, color: context.pal.brand),
+            const SizedBox(width: 6),
+            Text('端末を追加', style: TextStyle(color: context.pal.brand, fontWeight: FontWeight.w700)),
           ]),
         ),
       );

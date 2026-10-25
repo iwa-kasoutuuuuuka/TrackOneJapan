@@ -47,7 +47,7 @@ class DeviceCard extends ConsumerWidget {
                 onTap: () => ref.read(trackingProvider.notifier).ensureAddress(d.id, force: true),
                 child: Text(
                   p == null ? '位置情報がまだありません' : (address ?? '住所を取得中…'),
-                  style: const TextStyle(fontSize: 13, color: AppColors.sub, height: 1.5),
+                  style: TextStyle(fontSize: 13, color: context.pal.sub, height: 1.5),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -57,9 +57,9 @@ class DeviceCard extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(children: [
-                  _Stat(label: 'GPS', value: gpsLabel(p), color: gpsColor(p)),
-                  _Stat(label: 'エンジン', value: ignition == null ? '—' : (ignition ? 'ON' : 'OFF'), color: ignition == true ? AppColors.green : AppColors.ink),
-                  _Stat(label: '電池', value: battery == null ? '—' : '${battery.round()}%', color: (battery ?? 100) < 20 ? AppColors.red : AppColors.ink),
+                  _Stat(label: 'GPS', value: gpsLabel(p), color: gpsColor(p, ink: context.pal.ink)),
+                  _Stat(label: 'エンジン', value: ignition == null ? '—' : (ignition ? 'ON' : 'OFF'), color: ignition == true ? AppColors.green : context.pal.ink),
+                  _Stat(label: '電池', value: battery == null ? '—' : '${battery.round()}%', color: (battery ?? 100) < 20 ? AppColors.red : context.pal.ink),
                 ]),
               ),
               const Divider(height: 1),
@@ -98,10 +98,10 @@ class _CardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
+        decoration: BoxDecoration(
+          color: context.pal.card,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
         ),
         // 横向き・文字を大きくした設定でもはみ出さないよう、高さを画面の 55% までにしてスクロールさせる
         child: SafeArea(
@@ -123,7 +123,7 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Expanded(
         child: Column(children: [
-          Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.sub)),
+          Text(label, style: TextStyle(fontSize: 11.5, color: context.pal.sub)),
           const SizedBox(height: 2),
           Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
         ]),
@@ -152,7 +152,7 @@ class _MenuButton extends StatelessWidget {
                 child: Icon(icon, color: Colors.white, size: 21),
               ),
               const SizedBox(height: 4),
-              Text(label, style: const TextStyle(fontSize: 11, color: AppColors.sub)),
+              Text(label, style: TextStyle(fontSize: 11, color: context.pal.sub)),
             ]),
           ),
         ),

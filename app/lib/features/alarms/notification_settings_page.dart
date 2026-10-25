@@ -51,7 +51,7 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
     final hasPush = s.notificators.contains('firebase');
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(title: const Text('通知の設定')),
       body: s.loading
           ? const Center(child: CircularProgressIndicator())
@@ -73,7 +73,7 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                       ? 'サーバーでプッシュ通知（Firebase）が使えるため、アプリを閉じていても通知が届きます。'
                       : 'いまはアプリが動いている間（画面を閉じても、アプリを終了していなければ）通知が届きます。'
                           'アプリを完全に終了しているときにも届けるには、サーバーにプッシュ通知（Firebase）の設定が必要です。',
-                  style: const TextStyle(fontSize: 11.5, color: AppColors.sub, height: 1.6),
+                  style: TextStyle(fontSize: 11.5, color: context.pal.sub, height: 1.6),
                 ),
               ),
               const _Caption('受け取るアラームの種類（全端末共通）'),
@@ -94,12 +94,12 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
                   onPressed: s.working ? null : () => ref.read(notificationSettingsProvider.notifier).enableRecommended(),
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: Text(
                   'この設定はサーバーに保存され、同じアカウントでログインしている他のスマホやブラウザにも反映されます。'
                   'アラームの履歴（過去 7 日間）は、設定に関係なく一覧で見られます。',
-                  style: TextStyle(fontSize: 11.5, color: AppColors.sub, height: 1.6),
+                  style: TextStyle(fontSize: 11.5, color: context.pal.sub, height: 1.6),
                 ),
               ),
               if (s.error != null) Padding(padding: const EdgeInsets.all(16), child: Text(s.error!, style: const TextStyle(color: AppColors.red))),
@@ -115,7 +115,7 @@ class _Caption extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
-        child: Text(text, style: const TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+        child: Text(text, style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
       );
 }
 
@@ -126,7 +126,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: context.pal.card, borderRadius: BorderRadius.circular(14)),
         child: Column(children: children),
       );
 }

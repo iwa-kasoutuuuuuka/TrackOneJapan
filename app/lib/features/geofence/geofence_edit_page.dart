@@ -241,7 +241,7 @@ class _GeofenceEditPageState extends ConsumerState<GeofenceEditPage> {
                   SegmentedButton<_Mode>(
                     showSelectedIcon: false,
                     style: SegmentedButton.styleFrom(
-                      backgroundColor: Colors.white,
+                      backgroundColor: context.pal.card,
                       selectedBackgroundColor: AppColors.navy,
                       selectedForegroundColor: Colors.white,
                       visualDensity: VisualDensity.compact,
@@ -338,8 +338,8 @@ class _EditPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: context.pal.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
         ),
@@ -372,7 +372,7 @@ class _EditPanel extends StatelessWidget {
                   ]),
                 ],
                 const SizedBox(height: 8),
-                const Text('対象の端末', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+                Text('対象の端末', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 if (devices.isEmpty)
                   const Text('端末がありません', style: TextStyle(fontSize: 12.5, color: AppColors.gray))
@@ -382,7 +382,7 @@ class _EditPanel extends StatelessWidget {
                       FilterChip(label: Text(d.name), selected: selected.contains(d.id), onSelected: (on) => onToggleDevice(d.id, on)),
                   ]),
                 const SizedBox(height: 10),
-                const Text('通知（すべてのエリア・端末に共通）', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+                Text('通知（すべてのエリア・端末に共通）', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
                 Row(children: [
                   Expanded(child: _NotifySwitch(label: '入ったとき', value: enterOn, onChanged: notifyBusy ? null : (v) => onNotify('geofenceEnter', v))),
                   const SizedBox(width: 8),
@@ -411,7 +411,7 @@ class _NotifySwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.only(left: 12),
-        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFD5DAE3), width: 1.5), borderRadius: BorderRadius.circular(11)),
+        decoration: BoxDecoration(border: Border.all(color: context.isDark ? const Color(0xFF3A4352) : const Color(0xFFD5DAE3), width: 1.5), borderRadius: BorderRadius.circular(11)),
         child: Row(children: [
           Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
           Switch(value: value, onChanged: onChanged),
@@ -427,13 +427,13 @@ class _MapButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: context.pal.card,
         elevation: 3,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
-          child: Tooltip(message: tooltip, child: SizedBox(width: 40, height: 40, child: Icon(icon, color: AppColors.navy))),
+          child: Tooltip(message: tooltip, child: SizedBox(width: 40, height: 40, child: Icon(icon, color: context.pal.brand))),
         ),
       );
 }

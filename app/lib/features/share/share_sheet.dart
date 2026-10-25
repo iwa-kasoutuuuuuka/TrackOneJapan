@@ -102,22 +102,22 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('「${widget.deviceName}」の位置を共有', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'リンクを受け取った人は、アカウントなしでブラウザからこの端末の現在地だけを見られます。期限が過ぎると見られなくなります。',
-            style: TextStyle(fontSize: 12.5, color: AppColors.sub, height: 1.6),
+            style: TextStyle(fontSize: 12.5, color: context.pal.sub, height: 1.6),
           ),
           if (isLocalOnlyServer(server)) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFFFF4E0), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(10)),
               child: Text('いまのサーバー URL（$server）は家の外からは開けません。家族などに送る場合は、Tailscale Funnel の https:// の URL でログインしてください。',
                   style: const TextStyle(fontSize: 12)),
             ),
           ],
           const SizedBox(height: 14),
           if (_link == null) ...[
-            const Text('見られる期間', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+            Text('見られる期間', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Wrap(spacing: 8, children: [
               for (var i = 0; i < _choices.length; i++)
@@ -138,11 +138,11 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
           ] else ...[
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: context.pal.surface, borderRadius: BorderRadius.circular(10)),
               child: SelectableText(_link!, style: const TextStyle(fontSize: 12.5)),
             ),
             const SizedBox(height: 6),
-            Text('${Units.dateTime(_until!)} まで見られます', style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+            Text('${Units.dateTime(_until!)} まで見られます', style: TextStyle(fontSize: 12, color: context.pal.sub)),
             const SizedBox(height: 14),
             Row(children: [
               Expanded(child: OutlinedButton.icon(

@@ -1,10 +1,10 @@
 # TrackOne Japan アプリ（Flutter）
 
-GPS 発信機の位置を日本語で確認する Android アプリです。設計は [docs/05_アプリ設計.md](../docs/05_アプリ設計.md) を参照してください。
+GPS 発信機の位置を日本語で確認する Android / Windows アプリです。設計は [docs/05_アプリ設計.md](../docs/05_アプリ設計.md) を参照してください。
 
 ![段階1の画面](../docs/screenshots/app-stage1.png)
 
-## できること（段階1〜5）
+## できること（段階1〜6）
 
 | 機能 | 内容 |
 |---|---|
@@ -22,7 +22,9 @@ GPS 発信機の位置を日本語で確認する Android アプリです。設�
 | 位置共有（段階5） | 期限付き（1 時間／24 時間／7 日間）の共有リンクを `/api/share/device` で作成し、共有シートで送る・コピー。localhost／LAN の URL では注意を表示 |
 | 端末の追加・設定（段階5） | 名前・IMEI・アイコン（カテゴリ）・SIM の電話番号・機種・速度制限（km/h で入力し、Traccar の単位ノットで保存）、削除 |
 | SMS 設定（段階5） | GT06 系の文面のひな形（接続先の変更・状態確認・位置・設定確認・送信間隔・再起動）を編集して、SMS アプリを宛先・文面入りで開く（Windows はコピー） |
-| マイページ | アカウント、サーバー、地図の種類、アプリ情報（ライセンス）、ログアウト |
+| マイページ | アカウント、サーバー、地図の種類、画面の明るさ、アプリ情報（ライセンス）、ログアウト |
+| ダークモード（段階6） | 明るい／暗い／端末の設定に合わせる。色は `AppPalette`（`context.pal`）で明暗を切り替え |
+| 通信断の表示（段階6） | 切れてからの時間と「今すぐ再接続」、アプリに戻ったときの即時再接続・更新 |
 | オリジナルアイコン | ホーム画面アイコン（アダプティブ・テーマアイコン対応）、起動画面、地図マーカー |
 
 > **通知の仕組み**：Traccar は「web」方式の通知設定がある種類のイベントだけを WebSocket で配信します。アプリの通知設定画面は、全端末対象（`always: true`）・`web` の通知設定を作成／削除します。「警報（alarm）」の通知は `alarms` 属性に列挙した警報しか届けないため、全種類を列挙して作成し、属性がない既存の設定は自動で修復します。
@@ -46,7 +48,7 @@ GPS 発信機の位置を日本語で確認する Android アプリです。設�
 cd E:\TrackOne\app
 flutter pub get
 flutter test              # 単体テスト
-flutter build apk --debug # → build\app\outputs\flutter-apk\app-debug.apk
+flutter build apk --debug # → build\app\outputs\flutter-apk\app-debug.apk（開発版。配布版は下の「配布用のビルド」）
 ```
 
 ### テスト PC の Traccar とスマホをつないで試す
@@ -160,6 +162,47 @@ flutter test integration_test -d windows `
 ```
 
 `SCREENSHOT_DIR` を付けると、`docs/screenshots/windows-home.png` と `windows-replay.png` を撮り直します。
+
+## 配布用のビルド（リリース）
+
+```powershell
+cd E:\TrackOne\app
+powershell -ExecutionPolicy Bypass -File tool\build_release.ps1
+```
+
+テスト → リリース版 APK → Windows 版の順にビルドし、`app\dist`（Git には入れない）に次のファイルを作ります。
+これを GitHub の Releases に添付して配布します。
+
+| ファイル | 内容 |
+|---|---|
+| `TrackOneJapan-<版>.apk` | Android 用。リリース鍵で署名（arm64・armv7・x86_64 入り） |
+| `TrackOneJapan-<版>-windows.zip` | Windows 用。展開して `TrackOneJapan.exe` を起動 |
+| `SHA256SUMS.txt` | ファイルのハッシュ（壊れていないかの確認用） |
+
+### 版を上げるとき
+
+`pubspec.yaml` の `version: 1.0.0+1` を上げます。`+` の後ろの数字（Android の versionCode）は **毎回必ず増やして** ください（同じか小さいと、スマホで上書き更新できません）。
+
+### リリース用の署名鍵（大切）
+
+| ファイル | 内容 |
+|---|---|
+| `E:\TrackOne\secrets\trackone-release.jks` | 署名鍵（Git には入れない） |
+| `app\android\key.properties` | 鍵のパスワードと場所（Git には入れない） |
+
+- **この 2 つを USB メモリやパスワード管理アプリなど、別の場所にも必ず保管してください。** 鍵をなくすと、同じアプリとして更新できなくなり、利用者全員にアンインストールしてもらう必要があります
+- `key.properties` が無い PC でビルドすると、デバッグ用の鍵で署名されます（動作はしますが、配布版とは別のアプリ扱い）
+- 鍵を別の PC に移すときは、`key.properties` の `storeFile` をその PC での鍵の場所に書き換えます
+
+### 開発版と配布版の違い
+
+| | 開発版（`flutter build apk --debug`） | 配布版（`build_release.ps1`） |
+|---|---|---|
+| 署名 | デバッグ用の鍵 | リリース鍵 |
+| `http://` の URL | localhost・LAN 内なら使える（テスト用） | 使えない（`https://` のみ） |
+| 速さ・サイズ | 遅い・大きい | 速い・小さい |
+
+同じスマホに両方は入りません（署名が違うため）。切り替えるときはアンインストールしてから入れます。
 
 ## アイコンの作り直し
 

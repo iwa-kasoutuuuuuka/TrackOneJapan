@@ -35,6 +35,7 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
   List<StopReport> _stops = const [];
   List<TripReport> _trips = const [];
   SummaryReport? _summary;
+  double? _distance; // 走行距離（ルートの線の長さ。読み込み時に 1 回だけ計算）
 
   double _cursor = 0;
   bool _playing = false;
@@ -76,6 +77,7 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
       _stops = const [];
       _trips = const [];
       _summary = null;
+      _distance = null;
       _cursor = 0;
     });
     final r = dayRange(_day);
@@ -92,6 +94,10 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
         _stops = results[1] as List<StopReport>;
         _trips = results[2] as List<TripReport>;
         _summary = results[3] as SummaryReport?;
+        final summaryDistance = _summary?.distance;
+        _distance = _route.length >= 2
+            ? routeDistance(_route)
+            : (summaryDistance != null && summaryDistance >= 0 ? summaryDistance : null);
         _cursor = 0;
         _loading = false;
         _mapReady = false;
@@ -239,6 +245,7 @@ class _ReplayPageState extends ConsumerState<ReplayPage> {
           ),
           _ReplayPanel(
             summary: _summary,
+            distance: _distance,
             driving: totalDriving(_trips),
             stops: _stops,
             current: _current,
@@ -452,6 +459,7 @@ class _DateChips extends StatelessWidget {
 class _ReplayPanel extends StatelessWidget {
   const _ReplayPanel({
     required this.summary,
+    required this.distance,
     required this.driving,
     required this.stops,
     required this.current,
@@ -466,6 +474,7 @@ class _ReplayPanel extends StatelessWidget {
   });
 
   final SummaryReport? summary;
+  final double? distance;
   final Duration driving;
   final List<StopReport> stops;
   final Position? current;
@@ -482,10 +491,10 @@ class _ReplayPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = current;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
+      decoration: BoxDecoration(
+        color: context.pal.card,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 14, offset: Offset(0, -3))],
       ),
       child: SafeArea(
         top: false,
@@ -500,7 +509,7 @@ class _ReplayPanel extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _Kpi(value: summary == null ? '—' : Units.distanceKm(summary!.distance), label: '走行距離'),
+                      _Kpi(value: distance == null ? '—' : Units.distanceKm(distance!), label: '走行距離'),
                       _Kpi(value: driving == Duration.zero ? '—' : Units.duration(driving), label: '走行時間'),
                       _Kpi(value: summary == null ? '—' : Units.speedKmh(summary!.maxSpeed), label: '最高速度'),
                     ],
@@ -511,7 +520,7 @@ class _ReplayPanel extends StatelessWidget {
                       Expanded(
                         child: Text(
                           c == null || c.fixTime == null ? '—' : '${Units.dateTime(c.fixTime!)}　${Units.speedKmh(c.speed)}',
-                          style: const TextStyle(fontSize: 13, color: AppColors.sub),
+                          style: TextStyle(fontSize: 13, color: context.pal.sub),
                         ),
                       ),
                       InkWell(
@@ -523,7 +532,7 @@ class _ReplayPanel extends StatelessWidget {
                             '停車 ${stops.length} 回${stops.isEmpty ? '' : ' ›'}',
                             style: TextStyle(
                               fontSize: 13,
-                              color: stops.isEmpty ? AppColors.sub : AppColors.navy,
+                              color: stops.isEmpty ? context.pal.sub : context.pal.brand,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -535,7 +544,8 @@ class _ReplayPanel extends StatelessWidget {
                     children: [
                       IconButton.filled(
                         tooltip: playing ? '一時停止' : '再生',
-                        style: IconButton.styleFrom(backgroundColor: AppColors.ink),
+                        // 暗い画面では本文色（明るい色）だと白いアイコンが見えないので、紺系の塗りにする
+                        style: IconButton.styleFrom(backgroundColor: context.isDark ? Theme.of(context).colorScheme.primary : AppColors.ink),
                         onPressed: length < 2 ? null : onTogglePlay,
                         icon: Icon(playing ? Icons.pause : Icons.play_arrow),
                       ),
@@ -554,11 +564,11 @@ class _ReplayPanel extends StatelessWidget {
                           minimumSize: const Size(52, 34),
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-                          side: const BorderSide(color: AppColors.ink, width: 1.5),
+                          side: BorderSide(color: context.pal.ink, width: 1.5),
                         ),
                         child: Text(
                           '${speed}x',
-                          style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700),
+                          style: TextStyle(color: context.pal.ink, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -584,7 +594,7 @@ class _Kpi extends StatelessWidget {
       children: [
         Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.sub)),
+        Text(label, style: TextStyle(fontSize: 11.5, color: context.pal.sub)),
       ],
     ),
   );
@@ -603,7 +613,7 @@ class _InfoRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 80,
-          child: Text(label, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+          child: Text(label, style: TextStyle(color: context.pal.sub, fontSize: 13)),
         ),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13.5))),
       ],
@@ -623,7 +633,7 @@ class _MapMessage extends StatelessWidget {
       margin: const EdgeInsets.all(24),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: context.pal.card.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
       ),

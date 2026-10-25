@@ -106,7 +106,7 @@ class _AlarmDetailPageState extends ConsumerState<AlarmDetailPage> {
                       const SizedBox(height: 3),
                       Text(
                         '${s.deviceName(e.deviceId)}・${info.category.label}',
-                        style: const TextStyle(fontSize: 13, color: AppColors.sub),
+                        style: TextStyle(fontSize: 13, color: context.pal.sub),
                       ),
                     ],
                   ),
@@ -118,8 +118,8 @@ class _AlarmDetailPageState extends ConsumerState<AlarmDetailPage> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : p == null
-                ? const Center(
-                    child: Text('発生地点の位置情報はありません', style: TextStyle(color: AppColors.sub)),
+                ? Center(
+                    child: Text('発生地点の位置情報はありません', style: TextStyle(color: context.pal.sub)),
                   )
                 : FlutterMap(
                     options: MapOptions(initialCenter: LatLng(p.latitude, p.longitude), initialZoom: 16, maxZoom: 19),
@@ -197,7 +197,7 @@ class _Row extends StatelessWidget {
       children: [
         SizedBox(
           width: 76,
-          child: Text(label, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+          child: Text(label, style: TextStyle(color: context.pal.sub, fontSize: 13)),
         ),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13.5))),
       ],

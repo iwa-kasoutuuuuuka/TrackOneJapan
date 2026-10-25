@@ -54,6 +54,9 @@ void main() {
       expect(TraccarClient.isAllowedUrl('http://example.com'), isFalse);
       expect(TraccarClient.isAllowedUrl('http://172.40.0.5'), isFalse);
       expect(TraccarClient.isAllowedUrl('ftp://localhost'), isFalse);
+      // Android の配布版では http:// は使えない
+      expect(TraccarClient.isAllowedUrl('http://localhost:8082', allowHttp: false), isFalse);
+      expect(TraccarClient.isAllowedUrl('https://tracker.example.ts.net', allowHttp: false), isTrue);
     });
   });
 

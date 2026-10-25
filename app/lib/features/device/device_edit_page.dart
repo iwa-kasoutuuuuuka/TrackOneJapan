@@ -145,7 +145,7 @@ class _DeviceEditPageState extends ConsumerState<DeviceEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       appBar: AppBar(
         title: Text(_isNew ? '端末を追加' : '端末の設定'),
         actions: [TextButton(onPressed: _saving ? null : _save, child: const Text('保存')), const SizedBox(width: 4)],
@@ -177,7 +177,7 @@ class _DeviceEditPageState extends ConsumerState<DeviceEditPage> {
             },
           ),
           const SizedBox(height: 18),
-          const Text('地図のアイコン', style: TextStyle(fontSize: 12.5, color: AppColors.sub, fontWeight: FontWeight.w700)),
+          Text('地図のアイコン', style: TextStyle(fontSize: 12.5, color: context.pal.sub, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final (key, label) in deviceCategories)

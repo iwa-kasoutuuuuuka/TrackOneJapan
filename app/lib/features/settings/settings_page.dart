@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/state/auth.dart';
 import '../../core/state/map_type.dart';
+import '../../core/state/theme_mode.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../alarms/notification_settings_page.dart';
@@ -17,11 +18,12 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(authProvider).value;
     final mapType = ref.watch(mapTypeProvider);
+    final themeMode = ref.watch(themeModeProvider);
     final connected = ref.watch(trackingProvider.select((s) => s.connected));
 
     return Scaffold(
       appBar: AppBar(title: const Text('マイページ')),
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.pal.surface,
       body: ListView(children: [
         Container(
           margin: const EdgeInsets.all(14),
@@ -63,6 +65,31 @@ class SettingsPage extends ConsumerWidget {
                 ),
               );
               if (t != null) ref.read(mapTypeProvider.notifier).set(t);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.dark_mode_outlined),
+            title: const Text('画面の明るさ'),
+            subtitle: Text(themeModeLabel(themeMode)),
+            onTap: () async {
+              final m = await showDialog<ThemeMode>(
+                context: context,
+                builder: (context) => SimpleDialog(
+                  title: const Text('画面の明るさ'),
+                  children: [
+                    for (final m in ThemeMode.values)
+                      SimpleDialogOption(
+                        onPressed: () => Navigator.pop(context, m),
+                        child: Row(children: [
+                          Icon(m == themeMode ? Icons.radio_button_checked : Icons.radio_button_off, size: 20, color: context.pal.brand),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(themeModeLabel(m))),
+                        ]),
+                      ),
+                  ],
+                ),
+              );
+              if (m != null) ref.read(themeModeProvider.notifier).set(m);
             },
           ),
           ListTile(
@@ -134,7 +161,7 @@ class _Section extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
         // ListTile のタップ効果が見えるよう、背景は Material で塗る
         child: Material(
-          color: Colors.white,
+          color: context.pal.card,
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: Column(children: children),

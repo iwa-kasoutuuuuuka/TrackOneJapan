@@ -9,6 +9,7 @@ import '../../core/state/map_type.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../../widgets/base_map.dart';
+import 'connection_banner.dart';
 import 'device_status.dart';
 
 class MapView extends ConsumerStatefulWidget {
@@ -85,14 +86,14 @@ class _MapViewState extends ConsumerState<MapView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: selected ? AppColors.navy : Colors.white,
+                  color: selected ? AppColors.navy : context.pal.card,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                 ),
                 child: Text(d.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: selected ? Colors.white : AppColors.navy)),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: selected ? Colors.white : context.pal.brand)),
               ),
               const SizedBox(height: 3),
               Opacity(
@@ -158,20 +159,7 @@ class _MapViewState extends ConsumerState<MapView> {
             _Fab(icon: Icons.my_location, tooltip: '選択中の端末へ移動', onTap: () => _centerOnSelected(force: true)),
           ]),
         ),
-        if (!s.connected && !s.loading)
-          Positioned(
-            left: 12,
-            top: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-                SizedBox(width: 8),
-                Text('再接続中…', style: TextStyle(fontSize: 12)),
-              ]),
-            ),
-          ),
+        const Positioned(left: 12, top: 12, child: ConnectionBanner(compact: true)),
       ],
     );
   }
@@ -186,7 +174,7 @@ class _MapViewState extends ConsumerState<MapView> {
           const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('地図の種類', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
           for (final t in MapType.values)
             ListTile(
-              leading: Icon(t == current ? Icons.radio_button_checked : Icons.radio_button_off, color: AppColors.navy),
+              leading: Icon(t == current ? Icons.radio_button_checked : Icons.radio_button_off, color: context.pal.brand),
               title: Text(t.label),
               subtitle: Text(t.attribution, style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(context, t),
@@ -207,13 +195,13 @@ class _Fab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: context.pal.card,
         elevation: 3,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
-          child: Tooltip(message: tooltip, child: SizedBox(width: 40, height: 40, child: Icon(icon, color: AppColors.navy, size: 22))),
+          child: Tooltip(message: tooltip, child: SizedBox(width: 40, height: 40, child: Icon(icon, color: context.pal.brand, size: 22))),
         ),
       );
 }

@@ -48,4 +48,10 @@ void main() {
     expect(safeFileName('テスト 車/1'), 'テスト_車_1');
     expect(safeFileName(''), 'device');
   });
+
+  test('走行距離はルートの線の長さ（地点の順序が崩れた集計に左右されない）', () {
+    // 東京駅 → 新宿駅は直線で約 6.1 km
+    expect(haversine(35.6812, 139.7671, 35.6896, 139.7006) / 1000, closeTo(6.07, 0.1));
+    expect(routeDistance(const []), 0);
+  });
 }

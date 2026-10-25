@@ -43,7 +43,7 @@ void showDeviceDetail(BuildContext context, WidgetRef ref, int deviceId) {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 7),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 120, child: Text(r.$1, style: const TextStyle(color: AppColors.sub, fontSize: 13))),
+                  SizedBox(width: 120, child: Text(r.$1, style: TextStyle(color: context.pal.sub, fontSize: 13))),
                   Expanded(child: SelectableText(r.$2, style: const TextStyle(fontSize: 13.5))),
                 ]),
               ),

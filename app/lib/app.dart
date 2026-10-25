@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications/phone_notifier.dart';
 import 'core/state/auth.dart';
+import 'core/state/theme_mode.dart';
 import 'core/theme.dart';
 import 'features/alarms/alarm_detail_page.dart';
 import 'features/home/home_page.dart';
@@ -12,14 +13,14 @@ import 'features/login/login_page.dart';
 /// 通知をタップしたときに画面を開くための鍵
 final navigatorKey = GlobalKey<NavigatorState>();
 
-class TrackOneApp extends StatefulWidget {
+class TrackOneApp extends ConsumerStatefulWidget {
   const TrackOneApp({super.key});
 
   @override
-  State<TrackOneApp> createState() => _TrackOneAppState();
+  ConsumerState<TrackOneApp> createState() => _TrackOneAppState();
 }
 
-class _TrackOneAppState extends State<TrackOneApp> {
+class _TrackOneAppState extends ConsumerState<TrackOneApp> {
   @override
   void initState() {
     super.initState();
@@ -36,6 +37,8 @@ class _TrackOneAppState extends State<TrackOneApp> {
       title: 'TrackOne Japan',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      darkTheme: buildTheme(Brightness.dark),
+      themeMode: ref.watch(themeModeProvider),
       locale: const Locale('ja', 'JP'),
       supportedLocales: const [Locale('ja', 'JP')],
       localizationsDelegates: const [

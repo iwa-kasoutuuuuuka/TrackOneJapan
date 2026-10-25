@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/models.dart';
@@ -19,6 +20,7 @@ class TrackingState {
     this.selectedId,
     this.loading = true,
     this.connected = false,
+    this.disconnectedAt,
     this.error,
   });
 
@@ -29,6 +31,9 @@ class TrackingState {
   final int? selectedId;
   final bool loading;
   final bool connected;
+
+  /// サーバーとの接続が切れた時刻（つながっている間は null）
+  final DateTime? disconnectedAt;
   final String? error;
 
   List<Device> get sortedDevices => devices.values.toList()..sort((a, b) => a.name.compareTo(b.name));
@@ -43,6 +48,8 @@ class TrackingState {
     bool clearSelected = false,
     bool? loading,
     bool? connected,
+    DateTime? disconnectedAt,
+    bool clearDisconnectedAt = false,
     String? error,
     bool clearError = false,
   }) =>
@@ -54,6 +61,7 @@ class TrackingState {
         selectedId: clearSelected ? null : (selectedId ?? this.selectedId),
         loading: loading ?? this.loading,
         connected: connected ?? this.connected,
+        disconnectedAt: clearDisconnectedAt ? null : (disconnectedAt ?? this.disconnectedAt),
         error: clearError ? null : (error ?? this.error),
       );
 }
@@ -77,6 +85,16 @@ class TrackingNotifier extends Notifier<TrackingState> {
   final Queue<int> _geocodeQueue = Queue();
   bool _geocodeRunning = false;
   final Map<int, DateTime> _stopRefreshedAt = {};
+  AppLifecycleListener? _lifecycle;
+
+  static bool get _hasBinding {
+    try {
+      WidgetsBinding.instance; // 単体テストなど、画面のない環境では作らない
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   TraccarClient? get _client => ref.mounted ? ref.read(authProvider).value?.client : null;
 
@@ -89,6 +107,18 @@ class TrackingNotifier extends Notifier<TrackingState> {
       _sub = null;
       _retryTimer?.cancel();
       _retryTimer = null;
+      _lifecycle?.dispose();
+      _lifecycle = null;
+    });
+    // スマホがスリープから戻ったとき・アプリを開き直したときは、待たずにすぐ最新にする
+    _lifecycle?.dispose();
+    _lifecycle = !_hasBinding ? null : AppLifecycleListener(onResume: () {
+      if (!_alive(gen)) return;
+      if (state.connected) {
+        _reload(gen);
+      } else {
+        reconnectNow();
+      }
     });
     _retryCount = 0;
     _connecting = false;
@@ -186,7 +216,7 @@ class TrackingNotifier extends Notifier<TrackingState> {
       }
       await _sub?.cancel();
       _retryCount = 0;
-      state = state.copyWith(connected: true);
+      state = state.copyWith(connected: true, clearDisconnectedAt: true);
       _sub = stream.listen(
         (m) => _onMessage(gen, m),
         onDone: () => _scheduleReconnect(gen),
@@ -209,7 +239,7 @@ class TrackingNotifier extends Notifier<TrackingState> {
 
   void _scheduleReconnect(int gen) {
     if (!_alive(gen)) return;
-    state = state.copyWith(connected: false);
+    state = state.copyWith(connected: false, disconnectedAt: state.disconnectedAt ?? DateTime.now());
     _retryTimer?.cancel();
     final seconds = math.min(60, 5 * (1 << math.min(_retryCount, 4)));
     _retryCount++;
@@ -218,6 +248,16 @@ class TrackingNotifier extends Notifier<TrackingState> {
       await _reload(gen); // 切れている間の変化を取り込む
       await _connect(gen);
     });
+  }
+
+  /// 再接続の待ち時間を飛ばして、すぐにつなぎ直す（「今すぐ再接続」ボタン・アプリに戻ったとき）
+  Future<void> reconnectNow() async {
+    final gen = _gen;
+    if (!_alive(gen) || state.connected || _connecting) return;
+    _retryTimer?.cancel();
+    _retryCount = 0;
+    await _reload(gen);
+    await _connect(gen);
   }
 
   void _onMessage(int gen, Map<String, dynamic> msg) {

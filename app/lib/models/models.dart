@@ -201,13 +201,20 @@ class SummaryReport {
 
 /// ジオフェンス（エリア）
 class Geofence {
-  Geofence({required this.id, required this.name, required this.area});
+  Geofence({required this.id, required this.name, required this.area, this.raw = const {}});
   final int id;
   final String name;
-  final String area; // WKT
+  final String area; // WKT（Traccar は「緯度 経度」の順）
 
-  factory Geofence.fromJson(Map<String, dynamic> j) =>
-      Geofence(id: j['id'] as int, name: (j['name'] ?? '') as String, area: (j['area'] ?? '') as String);
+  /// サーバーから受け取ったそのままの内容（更新するときに他の項目を消さないため）
+  final Map<String, dynamic> raw;
+
+  factory Geofence.fromJson(Map<String, dynamic> j) => Geofence(
+        id: j['id'] as int,
+        name: (j['name'] ?? '') as String,
+        area: (j['area'] ?? '') as String,
+        raw: Map<String, dynamic>.from(j),
+      );
 }
 
 /// Traccar の通知設定（どの種類のイベントを、どの方法で届けるか）

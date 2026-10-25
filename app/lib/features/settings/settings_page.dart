@@ -7,6 +7,7 @@ import '../../core/state/map_type.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../alarms/notification_settings_page.dart';
+import '../geofence/geofence_list_page.dart';
 
 /// マイページ・設定
 class SettingsPage extends ConsumerWidget {
@@ -70,6 +71,13 @@ class SettingsPage extends ConsumerWidget {
             subtitle: const Text('受け取るアラームの種類、通知欄への表示'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationSettingsPage())),
+          ),
+          ListTile(
+            leading: const Icon(Icons.radar),
+            title: const Text('エリア（ジオフェンス）'),
+            subtitle: const Text('自宅・職場などの出入りを通知'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GeofenceListPage())),
           ),
         ]),
         _Section(children: [

@@ -117,11 +117,18 @@ void main() {
     await tester.tap(find.descendant(of: find.byType(DeviceCard), matching: find.text('履歴再生')));
     await pumpUntil(tester, find.byType(ReplayPage));
     // テスト用の走行記録は特定の日にしかないので、今日に記録がなければ「昨日」を見る
+    // （今日に停車のある記録がなければ「昨日」を見る）
     final hasStops = find.textContaining(RegExp(r'^停車 [1-9]\d* 回'));
-    final noRecord = find.text('この日の走行記録はありません');
-    await pumpUntil(tester, find.byWidgetPredicate((_) => hasStops.evaluate().isNotEmpty || noRecord.evaluate().isNotEmpty));
-    if (noRecord.evaluate().isNotEmpty) {
+    final loading = find.descendant(of: find.byType(ReplayPage), matching: find.byType(CircularProgressIndicator));
+    Future<void> waitLoaded() async {
+      await wait(tester, const Duration(seconds: 1));
+      await pumpUntil(tester, find.byWidgetPredicate((_) => loading.evaluate().isEmpty));
+    }
+
+    await waitLoaded();
+    if (hasStops.evaluate().isEmpty) {
       await tester.tap(find.text('昨日'));
+      await waitLoaded();
       await pumpUntil(tester, hasStops);
     }
     expect(find.text('この日の走行記録はありません'), findsNothing);

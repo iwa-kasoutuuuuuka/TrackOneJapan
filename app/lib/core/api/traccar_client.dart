@@ -194,6 +194,39 @@ class TraccarClient {
     return (_json(res) as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // ---------- エリア（段階4） ----------
+
+  /// 端末に割り当てられているエリア
+  Future<List<Geofence>> getGeofencesForDevice(int deviceId) async {
+    final res = await _call(() => _dio.get('/api/geofences', queryParameters: {'deviceId': deviceId}));
+    return (_json(res) as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Geofence> createGeofence({required String name, required String area}) async {
+    final res = await _call(() => _dio.post('/api/geofences', data: {'name': name, 'area': area, 'attributes': <String, dynamic>{}}));
+    return Geofence.fromJson(_json(res) as Map<String, dynamic>);
+  }
+
+  /// 名前と形だけを変える（説明・カレンダーなど管理画面で付けた項目はそのまま）
+  Future<Geofence> updateGeofence(Geofence g, {required String name, required String area}) async {
+    final body = {...g.raw, 'id': g.id, 'name': name, 'area': area};
+    final res = await _call(() => _dio.put('/api/geofences/${g.id}', data: body));
+    return Geofence.fromJson(_json(res) as Map<String, dynamic>);
+  }
+
+  Future<void> deleteGeofence(int id) async {
+    await _call(() => _dio.delete('/api/geofences/$id'));
+  }
+
+  /// 端末にエリアを割り当てる／外す
+  Future<void> linkGeofence(int deviceId, int geofenceId) async {
+    await _call(() => _dio.post('/api/permissions', data: {'deviceId': deviceId, 'geofenceId': geofenceId}));
+  }
+
+  Future<void> unlinkGeofence(int deviceId, int geofenceId) async {
+    await _call(() => _dio.delete('/api/permissions', data: {'deviceId': deviceId, 'geofenceId': geofenceId}));
+  }
+
   Future<List<NotificationConfig>> getNotifications() async {
     final res = await _call(() => _dio.get('/api/notifications'));
     return (_json(res) as List).map((e) => NotificationConfig.fromJson(e as Map<String, dynamic>)).toList();

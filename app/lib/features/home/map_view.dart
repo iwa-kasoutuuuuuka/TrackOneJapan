@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/geofence_shape.dart';
+import '../../core/state/geofences.dart';
 import '../../core/state/map_type.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
@@ -57,6 +59,8 @@ class _MapViewState extends ConsumerState<MapView> {
   Widget build(BuildContext context) {
     final s = ref.watch(trackingProvider);
     final mapType = ref.watch(mapTypeProvider);
+    // 登録したエリアを薄く表示する
+    final shapes = [for (final g in ref.watch(geofenceProvider).geofences) GeofenceShape.parse(g.area)].whereType<GeofenceShape>().toList();
 
     // 選択が変わったら地図をその端末へ
     ref.listen(trackingProvider.select((t) => t.selectedId), (_, _) => _centerOnSelected(force: true));
@@ -117,6 +121,26 @@ class _MapViewState extends ConsumerState<MapView> {
           ),
           children: [
             baseTileLayer(context, mapType),
+            CircleLayer(circles: [
+              for (final s in shapes.whereType<CircleShape>())
+                CircleMarker(
+                  point: s.center,
+                  radius: s.radius,
+                  useRadiusInMeter: true,
+                  color: const Color(0xFF3B82C4).withValues(alpha: 0.10),
+                  borderColor: const Color(0xFF3B82C4).withValues(alpha: 0.7),
+                  borderStrokeWidth: 1.5,
+                ),
+            ]),
+            PolygonLayer(polygons: [
+              for (final s in shapes.whereType<PolygonShape>())
+                Polygon(
+                  points: s.points,
+                  color: const Color(0xFF3B82C4).withValues(alpha: 0.10),
+                  borderColor: const Color(0xFF3B82C4).withValues(alpha: 0.7),
+                  borderStrokeWidth: 1.5,
+                ),
+            ]),
             MarkerLayer(markers: markers),
             baseAttribution(mapType),
           ],

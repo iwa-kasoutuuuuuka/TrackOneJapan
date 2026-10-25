@@ -194,6 +194,79 @@ class TraccarClient {
     return (_json(res) as List).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // ---------- 端末の設定・コマンド・共有（段階5） ----------
+
+  /// 端末の追加（識別子 = 発信機の IMEI）
+  Future<Device> createDevice({required String name, required String uniqueId, String? category, String? phone}) async {
+    final res = await _call(() => _dio.post('/api/devices', data: {
+          'name': name,
+          'uniqueId': uniqueId,
+          'category': ?category,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          'attributes': <String, dynamic>{},
+        }));
+    return Device.fromJson(_json(res) as Map<String, dynamic>);
+  }
+
+  /// 端末の設定を変える（管理画面で付けたほかの項目はそのまま）
+  Future<Device> updateDevice(Device d, {required String name, String? category, String? phone, String? model, double? speedLimitKmh}) async {
+    final attrs = Map<String, dynamic>.from(d.attributes);
+    if (speedLimitKmh == null || speedLimitKmh <= 0) {
+      attrs.remove('speedLimit');
+    } else {
+      attrs['speedLimit'] = speedLimitKmh / 1.852; // Traccar はノット
+    }
+    final body = {
+      ...d.raw,
+      'id': d.id,
+      'name': name,
+      'category': category,
+      'phone': (phone == null || phone.isEmpty) ? null : phone,
+      'model': (model == null || model.isEmpty) ? null : model,
+      'attributes': attrs,
+    };
+    final res = await _call(() => _dio.put('/api/devices/${d.id}', data: body));
+    return Device.fromJson(_json(res) as Map<String, dynamic>);
+  }
+
+  Future<void> deleteDevice(int id) async {
+    await _call(() => _dio.delete('/api/devices/$id'));
+  }
+
+  /// 端末が対応しているコマンドの種類
+  Future<List<String>> getCommandTypes(int deviceId) async {
+    final res = await _call(() => _dio.get('/api/commands/types', queryParameters: {'deviceId': deviceId}));
+    return (_json(res) as List).map((e) => (e as Map<String, dynamic>)['type'] as String).toList();
+  }
+
+  /// コマンドを送る。true = すぐ送信、false = 端末が圏外などで保留（通信が戻ったら送られる）
+  Future<bool> sendCommand(int deviceId, String type, {Map<String, dynamic> attributes = const {}}) async {
+    final res = await _call(() => _dio.post('/api/commands/send', data: {'deviceId': deviceId, 'type': type, 'attributes': attributes}));
+    return res.statusCode != 202;
+  }
+
+  /// コマンドの結果・保留中コマンドの送信の履歴
+  Future<List<TrackerEvent>> getCommandEvents(int deviceId, {Duration lookBack = const Duration(days: 7)}) async {
+    final to = DateTime.now().toUtc();
+    final res = await _call(() => _dio.get('/api/reports/events',
+        queryParameters: {
+          'deviceId': deviceId,
+          'from': to.subtract(lookBack).toIso8601String(),
+          'to': to.toIso8601String(),
+          'type': ['commandResult', 'queuedCommandSent'],
+        },
+        options: Options(listFormat: ListFormat.multi)));
+    return (_json(res) as List).map((e) => TrackerEvent.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 位置共有用のトークンを作る（期限付き。リンクは「サーバー URL/?token=...」）
+  Future<String> shareDevice(int deviceId, DateTime expiration) async {
+    final res = await _call(() => _dio.post('/api/share/device',
+        data: {'deviceId': deviceId, 'expiration': expiration.toUtc().toIso8601String()},
+        options: Options(contentType: Headers.formUrlEncodedContentType, responseType: ResponseType.plain)));
+    return (res.data as String).trim();
+  }
+
   // ---------- エリア（段階4） ----------
 
   /// 端末に割り当てられているエリア

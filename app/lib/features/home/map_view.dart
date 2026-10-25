@@ -182,7 +182,7 @@ class _MapViewState extends ConsumerState<MapView> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('地図の種類', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
           for (final t in MapType.values)
             ListTile(
@@ -191,7 +191,7 @@ class _MapViewState extends ConsumerState<MapView> {
               subtitle: Text(t.attribution, style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(context, t),
             ),
-        ]),
+        ])),
       ),
     );
     if (!mounted) return; // 選んでいる間に画面が切り替わった（PC のウィンドウ幅の変更など）

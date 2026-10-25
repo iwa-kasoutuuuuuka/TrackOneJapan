@@ -7,24 +7,29 @@
 //     --dart-define=SCREENSHOT_DIR=E:\TrackOne\docs\screenshots   # 任意: 画面を PNG で保存
 //
 // 確認すること: ログイン → トークン保存 → 自動ログイン、広い画面のホーム（一覧＋地図）、
-// 端末「テスト車」の履歴再生（停車地点・走行距離などの読み込み）
+// 端末「テスト車」の履歴再生（停車地点・走行距離などの読み込み）、
+// 位置共有のリンク作成・コマンド画面・端末の設定・SMS の文面コピー（PC は SMS を送れないのでコピー）
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:trackone_japan/app.dart';
+import 'package:trackone_japan/features/commands/commands_page.dart';
+import 'package:trackone_japan/features/device/device_edit_page.dart';
 import 'package:trackone_japan/features/home/device_card.dart';
 import 'package:trackone_japan/features/home/device_list_view.dart';
 import 'package:trackone_japan/features/home/home_page.dart';
 import 'package:trackone_japan/features/home/wide_home_layout.dart';
 import 'package:trackone_japan/features/login/login_page.dart';
 import 'package:trackone_japan/features/replay/replay_page.dart';
+import 'package:trackone_japan/features/sms/sms_setup_page.dart';
 
 const _url = String.fromEnvironment('TRACCAR_URL', defaultValue: 'http://localhost:8082');
 const _email = String.fromEnvironment('TRACCAR_EMAIL');
@@ -42,7 +47,9 @@ Future<void> pumpUntil(WidgetTester tester, Finder finder, {Duration timeout = c
     if (finder.evaluate().isNotEmpty) return;
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
-  fail('見つかりませんでした: $finder');
+  // 原因を調べやすいよう、画面に出ている文字を書き出す
+  final texts = find.byType(Text).evaluate().map((e) => (e.widget as Text).data).whereType<String>().toList();
+  fail('見つかりませんでした: $finder 画面の文字: $texts');
 }
 
 /// 地図タイルなどの読み込みを、実時間で少し待つ
@@ -178,7 +185,56 @@ void main() {
     Navigator.of(tester.element(find.text('端末の詳細'))).pop();
     await wait(tester, const Duration(milliseconds: 600));
 
-    // 10) マイページ: アプリのバージョン（package_info_plus）が Windows でも取れる
+    // 10) 位置共有: リンクを作ってコピー（PC には「送る」ボタンが無い）
+    await tester.tap(find.descendant(of: find.byType(DeviceCard), matching: find.text('共有')));
+    await pumpUntil(tester, find.text('共有リンクを作る'));
+    await wait(tester, const Duration(milliseconds: 600)); // シートが下から出てくるのを待つ
+    await tester.ensureVisible(find.text('共有リンクを作る'));
+    await tester.pump();
+    await tester.tap(find.text('共有リンクを作る'));
+    await pumpUntil(tester, find.text('コピー'));
+    expect(find.widgetWithText(FilledButton, '送る'), findsNothing);
+    await tester.ensureVisible(find.text('コピー'));
+    await tester.pump();
+    await tester.tap(find.text('コピー'));
+    await pumpUntil(tester, find.text('コピーしました'));
+    final shared = await tester.runAsync(() => Clipboard.getData(Clipboard.kTextPlain));
+    expect(shared?.text, startsWith('$_url/?token='));
+    Navigator.of(tester.element(find.text('コピーしました'))).pop();
+    await wait(tester, const Duration(milliseconds: 600));
+
+    // 11) コマンド画面が開く（送信はしない）
+    await tester.tap(find.descendant(of: find.byType(DeviceCard), matching: find.text('コマンド')));
+    await pumpUntil(tester, find.byType(CommandsPage));
+    await pumpUntil(tester, find.text('任意のコマンド'));
+    Navigator.of(tester.element(find.byType(CommandsPage))).pop();
+    await wait(tester, const Duration(milliseconds: 600));
+
+    // 12) 端末の設定 → SMS の文面は PC ではコピーになる
+    await tester.tap(find.descendant(of: find.byType(DeviceCard), matching: find.text('詳細')));
+    await pumpUntil(tester, find.text('端末の設定を変更'));
+    await wait(tester, const Duration(milliseconds: 600));
+    await tester.ensureVisible(find.text('端末の設定を変更'));
+    await tester.pump();
+    await tester.tap(find.text('端末の設定を変更'));
+    await pumpUntil(tester, find.byType(DeviceEditPage));
+    expect(find.widgetWithText(TextFormField, _carName), findsOneWidget);
+    await tester.ensureVisible(find.text('SMS で発信機を設定する'));
+    await tester.tap(find.text('SMS で発信機を設定する'));
+    await pumpUntil(tester, find.byType(SmsSetupPage));
+    await tester.tap(find.text('状態の確認'));
+    await pumpUntil(tester, find.widgetWithText(FilledButton, 'コピー'));
+    await wait(tester, const Duration(milliseconds: 400));
+    await tester.tap(find.widgetWithText(FilledButton, 'コピー'));
+    await pumpUntil(tester, find.textContaining('文面をコピーしました'));
+    final sms = await tester.runAsync(() => Clipboard.getData(Clipboard.kTextPlain));
+    expect(sms?.text, 'STATUS#');
+    Navigator.of(tester.element(find.byType(SmsSetupPage))).pop();
+    await wait(tester, const Duration(milliseconds: 600));
+    Navigator.of(tester.element(find.byType(DeviceEditPage))).pop();
+    await wait(tester, const Duration(milliseconds: 600));
+
+    // 13) マイページ: アプリのバージョン（package_info_plus）が Windows でも取れる
     await tester.tap(find.byTooltip('マイページ'));
     await pumpUntil(tester, find.textContaining(RegExp(r'^TrackOne Japan \d+\.\d+\.\d+')));
     expect(find.text('http://localhost:8082'), findsWidgets);

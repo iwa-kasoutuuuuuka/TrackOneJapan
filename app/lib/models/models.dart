@@ -33,6 +33,8 @@ class Device {
     required this.phone,
     required this.model,
     required this.disabled,
+    this.attributes = const {},
+    this.raw = const {},
   });
 
   final int id;
@@ -45,10 +47,22 @@ class Device {
   final String? phone;
   final String? model;
   final bool disabled;
+  final Map<String, dynamic> attributes;
+
+  /// サーバーから受け取ったそのままの内容（更新するときに他の項目を消さないため）
+  final Map<String, dynamic> raw;
 
   bool get isOnline => status == 'online';
 
+  /// 速度制限（km/h）。Traccar はノットで保存している
+  double? get speedLimitKmh {
+    final kn = (attributes['speedLimit'] as num?)?.toDouble();
+    return kn == null || kn <= 0 ? null : kn * 1.852;
+  }
+
   factory Device.fromJson(Map<String, dynamic> j) => Device(
+        attributes: Map<String, dynamic>.from((j['attributes'] ?? {}) as Map),
+        raw: Map<String, dynamic>.from(j),
         id: j['id'] as int,
         name: (j['name'] ?? '') as String,
         uniqueId: (j['uniqueId'] ?? '') as String,

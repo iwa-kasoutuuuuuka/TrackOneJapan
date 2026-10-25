@@ -46,6 +46,15 @@ class SessionStore {
   Future<void> saveLastSeenEvents(String owner, DateTime t) =>
       _s.write(key: _lastSeenKey(owner), value: t.toUtc().toIso8601String());
 
+  /// SMS で発信機に設定する接続先（DuckDNS のドメインと、ルーターで開けた外部ポート）
+  Future<({String domain, String port})> readSmsTarget() async =>
+      (domain: await _s.read(key: 'sms_domain') ?? '', port: await _s.read(key: 'sms_port') ?? '5023');
+
+  Future<void> saveSmsTarget(String domain, String port) async {
+    await _s.write(key: 'sms_domain', value: domain);
+    await _s.write(key: 'sms_port', value: port);
+  }
+
   /// このスマホに通知を表示するか（初期値: する）
   Future<bool> readPhoneNotify() async => (await _s.read(key: _kPhoneNotify)) != 'off';
   Future<void> savePhoneNotify(bool on) => _s.write(key: _kPhoneNotify, value: on ? 'on' : 'off');

@@ -5,6 +5,7 @@ import '../../core/state/tracking.dart';
 import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
+import '../device/device_edit_page.dart';
 import 'device_status.dart';
 
 /// 端末一覧（TrackerOne の list タブに相当）
@@ -47,12 +48,16 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
           child: RefreshIndicator(
             onRefresh: notifier.reload,
             child: devices.isEmpty
-                ? ListView(children: const [Padding(padding: EdgeInsets.all(32), child: Center(child: Text('端末がありません')))])
+                ? ListView(padding: const EdgeInsets.all(12), children: [
+                    const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('端末がありません'))),
+                    _AddDeviceTile(onTap: () => _openAdd(context)),
+                  ])
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                    itemCount: devices.length,
+                    itemCount: devices.length + 1, // 最後に「端末を追加」
                     separatorBuilder: (_, _) => const SizedBox(height: 9),
                     itemBuilder: (context, i) {
+                      if (i == devices.length) return _AddDeviceTile(onTap: () => _openAdd(context));
                       final d = devices[i];
                       final p = s.positions[d.id];
                       final info = DeviceStatusInfo.of(d, p, s.stoppedSince[d.id]);
@@ -110,4 +115,29 @@ class _DeviceListViewState extends ConsumerState<DeviceListView> {
       ]),
     );
   }
+}
+
+void _openAdd(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DeviceEditPage()));
+
+class _AddDeviceTile extends StatelessWidget {
+  const _AddDeviceTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFC9D1DE), width: 1.5),
+          ),
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.add, color: AppColors.navy),
+            SizedBox(width: 6),
+            Text('端末を追加', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      );
 }

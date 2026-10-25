@@ -5,7 +5,9 @@ import '../../core/state/tracking.dart';
 import '../../core/state/clock.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
+import '../commands/commands_page.dart';
 import '../replay/replay_page.dart';
+import '../share/share_sheet.dart';
 import 'device_detail_sheet.dart';
 import 'device_status.dart';
 
@@ -78,8 +80,8 @@ class DeviceCard extends ConsumerWidget {
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReplayPage(deviceId: d.id))),
               ),
               _MenuButton(icon: Icons.article_outlined, label: '詳細', color: AppColors.navy, onTap: () => showDeviceDetail(context, ref, d.id)),
-              _MenuButton(icon: Icons.share_outlined, label: '共有', color: const Color(0xFF3B82C4), onTap: () => _comingSoon(context, '位置共有')),
-              _MenuButton(icon: Icons.terminal, label: 'コマンド', color: AppColors.red, onTap: () => _comingSoon(context, 'コマンド')),
+              _MenuButton(icon: Icons.share_outlined, label: '共有', color: const Color(0xFF3B82C4), onTap: () => showShareSheet(context, d.id, d.name)),
+              _MenuButton(icon: Icons.terminal, label: 'コマンド', color: AppColors.red, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CommandsPage(deviceId: d.id)))),
             ]),
           ),
         ],
@@ -87,11 +89,6 @@ class DeviceCard extends ConsumerWidget {
     );
   }
 
-  void _comingSoon(BuildContext context, String name) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('「$name」は次の開発段階で追加します')));
-  }
 }
 
 class _CardShell extends StatelessWidget {

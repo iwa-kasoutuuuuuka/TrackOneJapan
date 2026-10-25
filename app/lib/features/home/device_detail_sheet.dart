@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/state/tracking.dart';
 import '../../core/theme.dart';
 import '../../core/units.dart';
+import '../device/device_edit_page.dart';
 
 /// 端末の詳細（段階1は表示のみ）
 void showDeviceDetail(BuildContext context, WidgetRef ref, int deviceId) {
@@ -31,8 +32,9 @@ void showDeviceDetail(BuildContext context, WidgetRef ref, int deviceId) {
           if (p.attributes['totalDistance'] is num) ('総走行距離', Units.distanceKm((p.attributes['totalDistance'] as num).toDouble())),
         ],
       ];
+      // 横向きのスマホや低いウィンドウでも下のボタンまで届くよう、スクロールできるようにする
       return SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('端末の詳細', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
@@ -46,7 +48,18 @@ void showDeviceDetail(BuildContext context, WidgetRef ref, int deviceId) {
                 ]),
               ),
             const SizedBox(height: 6),
-            const Text('名前や種類の変更は次の開発段階で追加します。', style: TextStyle(fontSize: 11.5, color: AppColors.gray)),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('端末の設定を変更'),
+                onPressed: () {
+                  final navigator = Navigator.of(context); // シートを閉じる前に取っておく
+                  navigator.pop();
+                  navigator.push(MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)));
+                },
+              ),
+            ),
           ]),
         ),
       );

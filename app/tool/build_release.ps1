@@ -52,7 +52,8 @@ Remove-Item $staging -Recurse -Force
 $sums = Get-ChildItem $dist -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
     '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
 }
-[IO.File]::WriteAllLines((Join-Path $dist 'SHA256SUMS.txt'), $sums)
+# 改行は LF（Linux・Mac の sha256sum -c でも確認できるように）
+[IO.File]::WriteAllText((Join-Path $dist 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
 
 Write-Host ''
 Write-Host "できました: $dist" -ForegroundColor Green

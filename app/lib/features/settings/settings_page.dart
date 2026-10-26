@@ -140,8 +140,16 @@ class SettingsPage extends ConsumerWidget {
                   ],
                 ),
               );
-              if (ok == true) {
-                await ref.read(authProvider.notifier).logout();
+              if (ok == true && context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
+                final revoked = await ref.read(authProvider.notifier).logout();
+                if (!revoked) {
+                  messenger.showSnackBar(const SnackBar(
+                    duration: Duration(seconds: 8),
+                    content: Text('サーバーにつながらなかったため、ログイン用の鍵をサーバー側ではまだ無効にできていません。'
+                        '次にこのアプリでログインしたときに自動で無効にします（鍵は最長 90 日で切れます）'),
+                  ));
+                }
                 if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
               }
             },

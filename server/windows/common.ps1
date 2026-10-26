@@ -18,7 +18,10 @@ $script:TOMaintenanceFlag   = Join-Path $TOStateDir 'maintenance.flag'     # ins
 $script:TORestoreFailedFlag = Join-Path $TOStateDir 'restore-failed.flag'  # 復元に失敗して Traccar を止めている
 $script:TraccarDir    = Join-Path $env:ProgramFiles 'Traccar'
 $script:TraccarService = 'traccar'
+$script:TraccarVirtualAccount = 'NT SERVICE\traccar'   # Traccar 専用の最小権限アカウント（パスワード不要の仮想アカウント）
+$script:TOTestModeFlag = Join-Path $TOStateDir 'test-mode.flag'   # install.ps1 -TestMode で入れた PC
 $script:TONoFileLog   = $false
+$script:TOPrivateTempReady = $false
 
 # 日本語版 Windows でも名前が変わらないよう、アカウントは SID で指定する
 $script:SidAdministrators = 'S-1-5-32-544'
@@ -82,12 +85,26 @@ function Get-TOConfig {
         ActiveHoursEnd             = 23
         GeocoderEnabled            = $true
         GeocoderLanguage           = 'ja'
+        ServiceAccount             = $TraccarVirtualAccount
+        TraccarSha256              = ''
     }
     foreach ($k in $defaults.Keys) {
         if (-not $cfg.ContainsKey($k) -or $null -eq $cfg[$k]) { $cfg[$k] = $defaults[$k] }
     }
+    # ここで確かめる値は、パスやコマンドの組み立て（SYSTEM で動くバックアップ等）に使われるため、形式を厳しく確認する
     if ([string]$cfg.TraccarVersion -notmatch '^\d+\.\d+(\.\d+)?$') { throw "config.psd1 の TraccarVersion が正しくありません: $($cfg.TraccarVersion)" }
-    $ranges = @{ HealthCheckIntervalMinutes = 1, 1440; BackupKeepDays = 1, 3650; ActiveHoursStart = 0, 23; ActiveHoursEnd = 0, 23 }
+    if ([string]$cfg.PostgresMajor -notmatch '^\d+$') { throw "config.psd1 の PostgresMajor は数字だけにしてください（現在: $($cfg.PostgresMajor)）。" }
+    if ([string]$cfg.PostgresPackageId -notmatch '^[A-Za-z0-9][A-Za-z0-9.\-]*$') { throw "config.psd1 の PostgresPackageId が正しくありません: $($cfg.PostgresPackageId)" }
+    if (([string]$cfg.EnabledProtocols).Replace(' ', '') -notmatch '^[a-z0-9]+(,[a-z0-9]+)*$') { throw "config.psd1 の EnabledProtocols は 'gt06' や 'gt06,osmand' の形にしてください（現在: $($cfg.EnabledProtocols)）。" }
+    $cfg.EnabledProtocols = ([string]$cfg.EnabledProtocols).Replace(' ', '')
+    if (@($TraccarVirtualAccount, 'LocalSystem') -notcontains [string]$cfg.ServiceAccount) {
+        throw "config.psd1 の ServiceAccount は '$TraccarVirtualAccount'（推奨）か 'LocalSystem' にしてください（現在: $($cfg.ServiceAccount)）。"
+    }
+    if ([string]$cfg.TraccarSha256 -and [string]$cfg.TraccarSha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "config.psd1 の TraccarSha256 は 64 文字の 16 進数にしてください（空なら GitHub のリリース情報で確認します）。" }
+    # テスト用 PC（install.ps1 -TestMode）では、PC 自身からのテスト送信用に OsmAnd 方式も受け付ける
+    if ((Test-Path $TOTestModeFlag) -and -not (Test-TOProtocolEnabled $cfg 'osmand')) { $cfg.EnabledProtocols = "$($cfg.EnabledProtocols),osmand" }
+    $ranges = @{ HealthCheckIntervalMinutes = 1, 1440; BackupKeepDays = 1, 3650; ActiveHoursStart = 0, 23; ActiveHoursEnd = 0, 23
+                 WebPort = 1, 65535; Gt06Port = 1, 65535; OsmAndPort = 1, 65535; PostgresPort = 1, 65535 }
     foreach ($k in $ranges.Keys) {
         $n = 0
         if (-not [int]::TryParse([string]$cfg[$k], [ref]$n) -or $n -lt $ranges[$k][0] -or $n -gt $ranges[$k][1]) {
@@ -170,11 +187,65 @@ function Protect-TODirectory {
 }
 
 function Protect-TOFile {
-    param([Parameter(Mandatory)] [string] $Path)
+    # 管理者と SYSTEM（と指定した SID の読み取り）だけにする
+    param([Parameter(Mandatory)] [string] $Path, [string[]] $ReadSids = @())
     $acl = New-Object System.Security.AccessControl.FileSecurity
     $acl.SetAccessRuleProtection($true, $false)
     foreach ($sid in $SidAdministrators, $SidSystem) { $acl.AddAccessRule((New-TOAccessRule $sid 'FullControl' 'None')) }
+    foreach ($sid in $ReadSids) { $acl.AddAccessRule((New-TOAccessRule $sid 'Read' 'None')) }
     Set-Acl -Path $Path -AclObject $acl
+}
+
+function Set-TOOwnerToAdministrators {
+    # 一般ユーザーが作ったファイル・フォルダは、所有者として権限を戻せてしまうので、所有者を Administrators にする
+    # （管理者・SYSTEM・TrustedInstaller が所有者ならそのまま）
+    param([Parameter(Mandatory)] $Item)
+    $okOwners = @($SidAdministrators, $SidSystem, 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')   # TrustedInstaller
+    $path = $Item.FullName
+    $owner = (Get-Acl -Path $path).GetOwner([System.Security.Principal.SecurityIdentifier])
+    if ($null -ne $owner -and $okOwners -contains $owner.Value) { return }
+    $adminSid = New-Object System.Security.Principal.SecurityIdentifier($SidAdministrators)
+    try {
+        # Set-Acl は所有者だけを渡してもアクセス権まで書き換えてしまうため、.NET で所有者だけを書き込む
+        if ($Item.PSIsContainer) {
+            $o = New-Object System.Security.AccessControl.DirectorySecurity
+            $o.SetOwner($adminSid)
+            [System.IO.Directory]::SetAccessControl($path, $o)
+        } else {
+            $o = New-Object System.Security.AccessControl.FileSecurity
+            $o.SetOwner($adminSid)
+            [System.IO.File]::SetAccessControl($path, $o)
+        }
+    } catch {
+        Write-TOLog "所有者を変更できませんでした: $path（$($_.Exception.Message)）" -Level WARN
+    }
+}
+
+function Get-TOServiceSid {
+    # サービス専用アカウント（NT SERVICE\<名前>）の SID。サービス名から決まるので、サービスが無くても計算できる
+    # （sc.exe showsid と同じ値: S-1-5-80- + 大文字のサービス名（UTF-16LE）の SHA-1 を 4 バイトずつ区切った数）
+    param([Parameter(Mandatory)] [string] $Name)
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    try { $h = $sha.ComputeHash([System.Text.Encoding]::Unicode.GetBytes($Name.ToUpperInvariant())) } finally { $sha.Dispose() }
+    $parts = @(0..4 | ForEach-Object { [BitConverter]::ToUInt32($h, $_ * 4) })
+    return 'S-1-5-80-' + ($parts -join '-')
+}
+
+function Find-TOLinkInPath {
+    # パス（とその途中のフォルダ）にジャンクション・シンボリックリンクがあれば、その場所を返す（なければ $null）。
+    # SYSTEM で動く処理が、一般ユーザーの仕掛けたリンクをたどって別の場所に書き込んだり削除したりしないようにする
+    param([Parameter(Mandatory)] [string] $Path)
+    $p = [System.IO.Path]::GetFullPath($Path)
+    while ($p) {
+        if (Test-Path -LiteralPath $p) {
+            $item = Get-Item -LiteralPath $p -Force
+            if ($item.PSObject.Properties['LinkType'] -and @('Junction', 'SymbolicLink') -contains [string]$item.LinkType) { return $p }
+        }
+        $parent = [System.IO.Path]::GetDirectoryName($p)
+        if (-not $parent -or $parent -eq $p) { break }
+        $p = $parent
+    }
+    return $null
 }
 
 function Reset-TOItemAcl {
@@ -211,7 +282,10 @@ function Set-TOServerAcl {
     $explicit = @{}
     foreach ($d in $TOScriptsDir, $TOConfigDir, $TOWebOverrideDir) {
         if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force $d | Out-Null }
-        Reset-TOItemAcl -Path $d -ReadSids @($SidUsers)
+        $readers = @($SidUsers)
+        # web-override は Traccar（専用アカウント）が読んで配信する
+        if ($d -eq $TOWebOverrideDir) { $readers += Get-TOServiceSid $TraccarService }
+        Reset-TOItemAcl -Path $d -ReadSids $readers
         $explicit[$d] = $true
     }
     if (-not (Test-Path $TOStateDir)) { New-Item -ItemType Directory -Force $TOStateDir | Out-Null }
@@ -229,33 +303,15 @@ function Set-TOServerAcl {
     Initialize-SecretsDir
 
     # 既にあるファイル・フォルダに個別に付いている権限を消す（traccar.xml など保護済みのものはそのまま）
-    $adminSid = New-Object System.Security.Principal.SecurityIdentifier($SidAdministrators)
-    $okOwners = @($SidAdministrators, $SidSystem, 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')   # TrustedInstaller
+    # secrets は Initialize-SecretsDir で所有者・権限を直している
     $items = @(Get-ChildItem -Path $TORoot -Recurse -Force | Where-Object {
         $_.FullName -ne $TOSecretsDir -and -not $_.FullName.StartsWith($TOSecretsDir + '\', [StringComparison]::OrdinalIgnoreCase)
     })
     $items += Get-Item $TORoot
     foreach ($item in $items) {
         $path = $item.FullName
+        Set-TOOwnerToAdministrators -Item $item
         $acl = Get-Acl -Path $path
-        # 一般ユーザーが作ったファイルは所有者として権限を戻せてしまうので、所有者を Administrators にする
-        $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier])
-        if ($null -eq $owner -or $okOwners -notcontains $owner.Value) {
-            try {
-                # Set-Acl は所有者だけを渡してもアクセス権まで書き換えてしまうため、.NET で所有者だけを書き込む
-                if ($item.PSIsContainer) {
-                    $o = New-Object System.Security.AccessControl.DirectorySecurity
-                    $o.SetOwner($adminSid)
-                    [System.IO.Directory]::SetAccessControl($path, $o)
-                } else {
-                    $o = New-Object System.Security.AccessControl.FileSecurity
-                    $o.SetOwner($adminSid)
-                    [System.IO.File]::SetAccessControl($path, $o)
-                }
-            } catch {
-                Write-TOLog "所有者を変更できませんでした: $path（$($_.Exception.Message)）" -Level WARN
-            }
-        }
         if ($path -eq $TORoot -or $explicit.ContainsKey($path) -or $acl.AreAccessRulesProtected) { continue }
         $rules = $acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])
         if ($rules.Count -gt 0) { Reset-TOItemAcl -Path $path }
@@ -265,6 +321,27 @@ function Set-TOServerAcl {
 # ---------- 秘密情報（管理者と SYSTEM だけが読めるファイル） ----------
 function Initialize-SecretsDir {
     Protect-TODirectory -Path $TOSecretsDir
+    # 移設のときに一般ユーザーの権限で作ったフォルダ・コピーしたファイルは、所有者がその人のままだと
+    # 後から権限を戻してパスワードを読めてしまう。所有者を Administrators にし、個別の権限も外す
+    $items = @(Get-Item -LiteralPath $TOSecretsDir -Force) + @(Get-ChildItem -LiteralPath $TOSecretsDir -Recurse -Force)
+    foreach ($item in $items) {
+        Set-TOOwnerToAdministrators -Item $item
+        if ($item.FullName -eq $TOSecretsDir) { continue }
+        $acl = Get-Acl -Path $item.FullName
+        if ($acl.AreAccessRulesProtected -or $acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]).Count -gt 0) {
+            Reset-TOItemAcl -Path $item.FullName
+        }
+    }
+}
+
+function Get-TOPrivateTempDir {
+    # パスワード入りの SQL などを一時的に置くフォルダ（管理者と SYSTEM だけが読める）
+    $dir = Join-Path $TOStateDir 'tmp'
+    if (-not $script:TOPrivateTempReady -or -not (Test-Path $dir)) {
+        Protect-TODirectory -Path $dir
+        $script:TOPrivateTempReady = $true
+    }
+    return $dir
 }
 
 function Get-TOSecret {
@@ -327,12 +404,13 @@ function Invoke-Psql {
         [string] $Database = 'postgres'
     )
     $psql = Join-Path (Get-PgBin $Cfg) 'psql.exe'
-    # SQL はファイル経由で渡す（PowerShell 5.1 は外部コマンドの引数内の " を壊すため）
-    $sqlFile = [System.IO.Path]::GetTempFileName()
-    [System.IO.File]::WriteAllText($sqlFile, $Sql, (New-Object System.Text.UTF8Encoding($false)))
+    # SQL はファイル経由で渡す（PowerShell 5.1 は外部コマンドの引数内の " を壊すため）。
+    # パスワード変更の SQL も入るので、ユーザーの %TEMP% ではなく管理者と SYSTEM だけが読める場所に置き、必ず消す
+    $sqlFile = Join-Path (Get-TOPrivateTempDir) ([guid]::NewGuid().ToString('N') + '.sql')
     $env:PGPASSWORD = $Password
     $env:PGCLIENTENCODING = 'UTF8'
     try {
+        [System.IO.File]::WriteAllText($sqlFile, $Sql, (New-Object System.Text.UTF8Encoding($false)))
         $r = Invoke-TONative -FilePath $psql -ArgumentList @('-h', '127.0.0.1', '-p', [string]$Cfg.PostgresPort, '-U', $User, '-d', $Database,
             '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-q', '-f', $sqlFile)
         if ($r.ExitCode -ne 0) { throw "psql エラー（終了コード $($r.ExitCode)）: $($r.Error) $($r.Output)" }
@@ -340,6 +418,37 @@ function Invoke-Psql {
     } finally {
         Remove-Item Env:\PGPASSWORD, Env:\PGCLIENTENCODING -ErrorAction SilentlyContinue
         Remove-Item $sqlFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Remove-TOPgDataUserAccess {
+    # PostgreSQL のインストーラーは、インストールした人のアカウントにデータフォルダのフルコントロールを付ける。
+    # そのままだと、管理者権限なしで動く不正なプログラムが pg_hba.conf を書き換えたり、データを直接読んだりできる。
+    # 一般ユーザーのアカウント（S-1-5-21-…）に個別に付いた権限だけを外す（PostgreSQL のサービスと管理者の権限はそのまま）
+    param([Parameter(Mandatory)] $Cfg)
+    $data = Join-Path $env:ProgramFiles "PostgreSQL\$($Cfg.PostgresMajor)\data"
+    if (-not (Test-Path $data)) { Write-TOLog "PostgreSQL のデータフォルダが見つかりません: $data（権限の見直しを飛ばします）" -Level WARN; return }
+
+    # PostgreSQL のサービスのアカウント（通常は NETWORK SERVICE）が書き込めることを先に確認する
+    $svc = Get-CimInstance Win32_Service -Filter "Name='$(Get-PgServiceName $Cfg)'" -ErrorAction SilentlyContinue
+    $svcSid = 'S-1-5-20'
+    if ($svc -and $svc.StartName -and $svc.StartName -ne 'NT AUTHORITY\NetworkService') {
+        try { $svcSid = (New-Object System.Security.Principal.NTAccount($svc.StartName)).Translate([System.Security.Principal.SecurityIdentifier]).Value }
+        catch { Write-TOLog "PostgreSQL のサービスアカウント（$($svc.StartName)）を確認できないため、データフォルダの権限は変更しません" -Level WARN; return }
+    }
+    $rules = @((Get-Acl -Path $data).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+    $write = [System.Security.AccessControl.FileSystemRights]::WriteData
+    $svcCanWrite = @($rules | Where-Object { $_.IdentityReference.Value -eq $svcSid -and $_.AccessControlType -eq 'Allow' -and (($_.FileSystemRights -band $write) -eq $write) })
+    if ($svcCanWrite.Count -eq 0) {
+        Write-TOLog "PostgreSQL のサービス（$svcSid）の書き込み権限が見つからないため、データフォルダの権限は変更しません: $data" -Level WARN
+        return
+    }
+    $userSids = @($rules | Where-Object { -not $_.IsInherited -and $_.IdentityReference.Value -match '^S-1-5-21-' } |
+        ForEach-Object { $_.IdentityReference.Value } | Select-Object -Unique)
+    foreach ($sid in $userSids) {
+        $r = Invoke-TONative -FilePath 'icacls.exe' -ArgumentList @($data, '/remove:g', "*$sid", '/T', '/C', '/Q')
+        if ($r.ExitCode -ne 0) { throw "PostgreSQL のデータフォルダの権限を変更できませんでした（$sid）: $($r.Error) $($r.Output)" }
+        Write-TOLog "PostgreSQL のデータフォルダから、一般ユーザーに個別に付いた権限を外しました: $sid"
     }
 }
 
@@ -439,7 +548,8 @@ function Install-TraccarConfig {
     Protect-TOFile -Path $master
     $target = Join-Path $TraccarDir 'conf\traccar.xml'
     Copy-Item -Path $master -Destination $target -Force
-    Protect-TOFile -Path $target
+    # コピー先は Traccar（専用アカウント NT SERVICE\traccar）にも読み取りだけ許可する
+    Protect-TOFile -Path $target -ReadSids @(Get-TOServiceSid $TraccarService)
 }
 
 function Set-TOServiceRecovery {
@@ -448,6 +558,55 @@ function Set-TOServiceRecovery {
     & sc.exe config $ServiceName start= auto | Out-Null
     & sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
     if ($DependsOn) { & sc.exe config $ServiceName depend= $DependsOn | Out-Null }
+}
+
+function Set-TOTraccarServiceAccount {
+    # Traccar を、最小限の権限だけを持つ専用アカウント（NT SERVICE\traccar、パスワード不要の仮想アカウント）で動かす。
+    # LocalSystem（PC の最高権限）のままだと、インターネットから届く通信を処理する Traccar に脆弱性が見つかったとき、
+    # PC 全体を乗っ取られるおそれがあるため。何度実行しても同じ結果になる。起動・再起動は呼び出し側で行う。
+    # Traccar のインストーラーはサービスを LocalSystem に戻すので、インストール・更新のたびに呼ぶ。
+    param([Parameter(Mandatory)] $Cfg)
+    if (-not (Get-Service -Name $TraccarService -ErrorAction SilentlyContinue)) { throw 'traccar サービスがありません。' }
+    $account = [string]$Cfg.ServiceAccount
+    if ($account -eq 'LocalSystem') {
+        $r = Invoke-TONative -FilePath 'sc.exe' -ArgumentList @('config', $TraccarService, 'obj=', 'LocalSystem')
+        if ($r.ExitCode -ne 0) { throw "traccar サービスのアカウントを LocalSystem に設定できませんでした: $($r.Output) $($r.Error)" }
+        Write-TOLog 'config.psd1 の ServiceAccount が LocalSystem のため、Traccar を PC の最高権限で動かします（推奨しません）' -Level WARN
+        return
+    }
+
+    $sid = Get-TOServiceSid $TraccarService
+    # 読み取り: インストール先（プログラム・Java・テンプレート・画面）。
+    # 書き込み: ログ（logs）・データ（data）・端末の画像など（media。Traccar の media.path の既定値 ./media）だけ
+    $grants = @(
+        @{ Path = $TraccarDir;                      Rights = '(OI)(CI)RX' },
+        @{ Path = (Join-Path $TraccarDir 'logs');   Rights = '(OI)(CI)M' },
+        @{ Path = (Join-Path $TraccarDir 'data');   Rights = '(OI)(CI)M' },
+        @{ Path = (Join-Path $TraccarDir 'media');  Rights = '(OI)(CI)M' }
+    )
+    foreach ($g in $grants) {
+        if (-not (Test-Path $g.Path)) { New-Item -ItemType Directory -Force $g.Path | Out-Null }
+        $r = Invoke-TONative -FilePath 'icacls.exe' -ArgumentList @($g.Path, '/grant:r', "*${sid}:$($g.Rights)", '/C', '/Q')
+        if ($r.ExitCode -ne 0) { throw "Traccar 用アカウントの権限を設定できませんでした: $($g.Path) / $($r.Error) $($r.Output)" }
+    }
+    # traccar.xml（DB パスワード入り）と web-override（アイコン・ロゴ）は読み取りだけ
+    $conf = Join-Path $TraccarDir 'conf\traccar.xml'
+    if (Test-Path $conf) { Protect-TOFile -Path $conf -ReadSids @($sid) }
+    if (Test-Path $TOWebOverrideDir) { Reset-TOItemAcl -Path $TOWebOverrideDir -ReadSids @($SidUsers, $sid) }
+
+    $r = Invoke-TONative -FilePath 'sc.exe' -ArgumentList @('config', $TraccarService, 'obj=', $TraccarVirtualAccount)
+    if ($r.ExitCode -ne 0) { throw "traccar サービスのアカウントを $TraccarVirtualAccount に設定できませんでした: $($r.Output) $($r.Error)" }
+    $now = (Get-CimInstance Win32_Service -Filter "Name='$TraccarService'").StartName
+    if ($now -ne $TraccarVirtualAccount) { throw "traccar サービスのアカウントが $TraccarVirtualAccount になっていません（現在: $now）。" }
+    Write-TOLog "Traccar を専用アカウント $TraccarVirtualAccount で動かします（最小権限）"
+}
+
+function Get-TOTraccarStartHint {
+    # Traccar が起動しないときの案内（専用アカウントにしたことが原因かもしれない場合）
+    param([Parameter(Mandatory)] $Cfg)
+    if ([string]$Cfg.ServiceAccount -ne $TraccarVirtualAccount) { return '' }
+    return "`n専用アカウント（$TraccarVirtualAccount）で動かしたことが原因の可能性があります。ログに AccessDenied などがあれば、" +
+        "config.psd1 に ServiceAccount = 'LocalSystem' を書いて install.ps1 を再実行すると、以前の動かし方に戻せます。"
 }
 
 # ---------- サービスの停止・再起動（固まったときは強制終了） ----------
@@ -594,19 +753,75 @@ function Wait-TraccarApi {
 }
 
 # ---------- Traccar のダウンロード・インストール ----------
+function Get-TraccarReleaseSha256 {
+    # GitHub のリリース情報に載っている、配布ファイルの SHA-256（取れなければ $null）
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $AssetName)
+    try {
+        $rel = Invoke-RestMethod -UseBasicParsing -TimeoutSec 30 -Uri "https://api.github.com/repos/traccar/traccar/releases/tags/v$Version" `
+            -Headers @{ 'User-Agent' = 'TrackOneJapan'; 'Accept' = 'application/vnd.github+json' }
+    } catch {
+        Write-TOLog "GitHub のリリース情報を取得できませんでした: $($_.Exception.Message)" -Level WARN
+        return $null
+    }
+    $asset = @($rel.assets | Where-Object { $_.name -eq $AssetName }) | Select-Object -First 1
+    if ($asset -and $asset.PSObject.Properties['digest'] -and ([string]$asset.digest -match '^sha256:([0-9a-fA-F]{64})$')) {
+        return $Matches[1].ToLowerInvariant()
+    }
+    return $null
+}
+
+function Test-TOSha256 {
+    # ファイルの SHA-256 が期待した値と一致するか（大文字・小文字は区別しない）
+    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $Expected)
+    $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    return ($actual -eq $Expected.Trim().ToUpperInvariant())
+}
+
 function Get-TraccarPackage {
-    # ダウンロード・展開・署名の確認だけを行う（Traccar は止めない）
-    param([Parameter(Mandatory)] [string] $Version)
-    $work = Join-Path $env:TEMP "trackone-traccar-$Version"
+    # ダウンロード・ハッシュの確認・展開・署名の確認だけを行う（Traccar は止めない）。
+    # 一般ユーザーがインストーラーを差し替えられないよう、管理者と SYSTEM だけが使えるフォルダで作業する。
+    #   ExpectedSha256 : 配布 ZIP の SHA-256（config.psd1 の TraccarSha256 など）。空なら GitHub のリリース情報で確認する
+    #   AllowUnverified: ハッシュを確認できなかった場合でも続ける（通常は中止）
+    param([Parameter(Mandatory)] [string] $Version, [string] $ExpectedSha256, [switch] $AllowUnverified)
+    $downloadRoot = Join-Path $TOStateDir 'download'
+    Protect-TODirectory -Path $downloadRoot
+    $work = Join-Path $downloadRoot "traccar-$Version"
     if (Test-Path $work) { Remove-Item $work -Recurse -Force }
     New-Item -ItemType Directory -Force $work | Out-Null
-    $zip = Join-Path $work "traccar-windows-64-$Version.zip"
-    $url = "https://github.com/traccar/traccar/releases/download/v$Version/traccar-windows-64-$Version.zip"
+    $assetName = "traccar-windows-64-$Version.zip"
+    $zip = Join-Path $work $assetName
+    $url = "https://github.com/traccar/traccar/releases/download/v$Version/$assetName"
     Write-TOLog "Traccar $Version をダウンロード: $url"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $ProgressPreference = 'SilentlyContinue'
     try {
-        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+        } catch {
+            throw "Traccar $Version のダウンロードに失敗しました（バージョン番号とネット接続を確認してください）: $($_.Exception.Message)"
+        }
+
+        # 改ざん・破損の確認（ZIP の SHA-256）
+        $source = 'config.psd1 の TraccarSha256'
+        $expected = [string]$ExpectedSha256
+        if (-not $expected) {
+            $source = 'GitHub のリリース情報'
+            $expected = Get-TraccarReleaseSha256 -Version $Version -AssetName $assetName
+        }
+        $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($expected) {
+            if (-not (Test-TOSha256 -Path $zip -Expected $expected)) {
+                throw "ダウンロードした Traccar のハッシュが一致しません（$source と比較）。改ざんや破損の可能性があるため中止しました。"
+            }
+            Write-TOLog "ダウンロードしたファイルのハッシュを確認しました（$source と一致）" -Level OK
+        } elseif ($AllowUnverified) {
+            Write-TOLog "ダウンロードしたファイルのハッシュを確認できませんでしたが、-AllowUnverifiedDownload のため続けます（SHA-256: $zipHash）" -Level WARN
+        } else {
+            throw ("ダウンロードした Traccar のハッシュを確認できませんでした（GitHub のリリース情報にハッシュがありません）。`n" +
+                "https://github.com/traccar/traccar/releases で SHA-256 を確認して config.psd1 の TraccarSha256 に書くか、" +
+                "確認せずに進める場合は -AllowUnverifiedDownload を付けて再実行してください。")
+        }
+
         Expand-Archive -Path $zip -DestinationPath $work -Force
         $setup = Get-ChildItem -Path $work -Filter 'traccar-setup*.exe' -Recurse | Select-Object -First 1
         if (-not $setup) { throw 'traccar-setup.exe が見つかりません。' }
@@ -614,16 +829,21 @@ function Get-TraccarPackage {
         $sigLevel = 'INFO'
         if ($sig.Status -ne 'Valid') { $sigLevel = 'WARN' }
         Write-TOLog "インストーラー署名: $($sig.Status)" -Level $sigLevel
+        $setupHash = (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash
     } catch {
         Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-        throw "Traccar $Version のダウンロードに失敗しました（バージョン番号とネット接続を確認してください）: $($_.Exception.Message)"
+        throw
     }
-    return [pscustomobject]@{ Version = $Version; SetupPath = $setup.FullName; WorkDir = $work }
+    return [pscustomobject]@{ Version = $Version; SetupPath = $setup.FullName; WorkDir = $work; ZipSha256 = $zipHash; SetupSha256 = $setupHash }
 }
 
 function Install-TraccarPackage {
     # Get-TraccarPackage で用意したインストーラーを実行する（Traccar は呼び出し側で止めておく）
     param([Parameter(Mandatory)] $Package)
+    # 実行の直前に、確認したときのインストーラーから変わっていないかを確かめる
+    if (-not (Test-TOSha256 -Path $Package.SetupPath -Expected $Package.SetupSha256)) {
+        throw 'Traccar のインストーラーが、確認した後に変更されています。安全のため中止しました。'
+    }
     Write-TOLog "Traccar $($Package.Version) をインストール中（数分かかります）"
     $p = Start-Process -FilePath $Package.SetupPath -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "Traccar のインストールに失敗しました（終了コード $($p.ExitCode)）。" }

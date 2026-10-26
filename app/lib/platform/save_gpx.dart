@@ -31,11 +31,18 @@ Future<String?> exportGpxFile({required String fileName, required String gpx, re
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$fileName');
   await file.writeAsString(gpx);
-  await SharePlus.instance.share(
-    ShareParams(
-      files: [XFile(file.path, mimeType: 'application/gpx+xml')],
-      subject: subject,
-    ),
-  );
+  try {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'application/gpx+xml')],
+        subject: subject,
+      ),
+    );
+  } finally {
+    // 走行記録を端末に残さない（共有先へ渡すファイルは share_plus が別に複製している）
+    try {
+      await file.delete();
+    } catch (_) {}
+  }
   return null;
 }

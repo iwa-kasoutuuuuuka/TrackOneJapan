@@ -12,9 +12,15 @@ import '../../models/models.dart';
 
 /// アプリ向けのわかりやすいエラー
 class ApiException implements Exception {
-  ApiException(this.message, {this.unauthorized = false});
+  ApiException(this.message, {this.unauthorized = false, this.codeRequired = false, this.statusCode});
   final String message;
+
+  /// HTTP の状態コード（サーバーが応答したとき）
+  final int? statusCode;
   final bool unauthorized;
+
+  /// 2 段階認証（確認コード）が必要
+  final bool codeRequired;
   @override
   String toString() => message;
 }
@@ -32,6 +38,8 @@ class TraccarClient {
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
       headers: {'Accept': 'application/json'},
+      // 別のサイトへの転送には従わない（ログイン情報を別のホストに送らないため）
+      followRedirects: false,
     ));
     _dio.interceptors.add(CookieManager(_cookies));
   }
@@ -56,35 +64,73 @@ class TraccarClient {
     return url;
   }
 
-  /// http:// は PC 内・LAN 内のテスト用だけ許可する（ホスト名ではなく IP アドレスで判定）
-  /// http:// を使えるか。Android の配布版（リリース版）は OS が暗号化なしの通信を止めるため https:// のみ
-  static bool get httpSupported => kDebugMode || !Platform.isAndroid;
+  /// この版のアプリで使える http:// の範囲
+  ///
+  /// - 開発版: PC 内（localhost）と LAN 内の IP アドレス（テスト用）
+  /// - 配布版の Windows: PC 内（localhost）だけ。サーバー PC そのもので使う場合のため。
+  ///   LAN 内の http:// は、外出先の Wi-Fi で同じアドレスの別の機器に、ログイン用の鍵を
+  ///   暗号化せずに送ってしまうおそれがあるため使えない
+  /// - 配布版の Android: なし（OS が暗号化なしの通信を止める）
+  static HttpPolicy get httpPolicy => kDebugMode ? HttpPolicy.lan : (Platform.isAndroid ? HttpPolicy.none : HttpPolicy.loopback);
 
-  static bool isAllowedUrl(String url, {bool? allowHttp}) {
+  /// URL の問題点（null なら使える）
+  static String? urlProblem(String url, {HttpPolicy? policy}) {
     final uri = Uri.tryParse(url);
-    if (uri == null || uri.host.isEmpty) return false;
-    if (uri.scheme == 'https') return true;
-    if (uri.scheme != 'http' || !(allowHttp ?? httpSupported)) return false;
-    final h = uri.host;
+    if (uri == null || uri.host.isEmpty) return 'サーバー URL の形式が正しくありません';
+    // ユーザー名・パスワード入りや「?」「#」付きの URL は受け付けない（共有リンクにそのまま入ってしまうため）
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) {
+      return 'サーバー URL は「https://〇〇.ts.net」の形で、ユーザー名・パスワード・「?」「#」を含めずに入力してください';
+    }
+    if (uri.scheme == 'https') return null;
+    final p = policy ?? httpPolicy;
+    if (uri.scheme == 'http' && _httpHostAllowed(uri.host, p)) return null;
+    return switch (p) {
+      HttpPolicy.lan => 'URL は https:// で始まる必要があります（http:// は PC・LAN 内のテスト時のみ）',
+      HttpPolicy.loopback => 'URL は https:// で始まる必要があります（http:// はサーバー PC そのもの＝http://localhost:8082 のときだけ使えます）',
+      HttpPolicy.none => 'URL は https:// で始まる必要があります（配布版のアプリは http:// に接続できません。自宅の PC でのテストには開発版を使ってください）',
+    };
+  }
+
+  static bool isAllowedUrl(String url, {HttpPolicy? policy}) => urlProblem(url, policy: policy) == null;
+
+  /// http:// で接続してよいホストか（ホスト名ではなく IP アドレスで判定）
+  static bool _httpHostAllowed(String h, HttpPolicy p) {
+    if (p == HttpPolicy.none) return false;
     if (h == 'localhost') return true;
     final ip = InternetAddress.tryParse(h);
-    if (ip == null || ip.type != InternetAddressType.IPv4) return ip?.isLoopback ?? false;
+    if (ip == null) return false;
+    if (ip.isLoopback) return true;
+    if (p != HttpPolicy.lan || ip.type != InternetAddressType.IPv4) return false;
     final b = ip.rawAddress;
-    return b[0] == 127 || b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] >= 16 && b[1] <= 31);
+    return b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] >= 16 && b[1] <= 31);
   }
 
   // ---------- 認証 ----------
 
-  Future<User> login(String email, String password) async {
-    final res = await _call(
-        () => _dio.post('/api/session',
-            data: {'email': email, 'password': password}, options: Options(contentType: Headers.formUrlEncodedContentType)),
-        auth: _AuthKind.password);
-    return User.fromJson(_json(res) as Map<String, dynamic>);
+  /// [code] は 2 段階認証の確認コード（認証アプリに表示される 6 桁）
+  Future<User> login(String email, String password, {String? code}) async {
+    final withCode = code != null && code.isNotEmpty;
+    try {
+      final res = await _call(
+          () => _dio.post('/api/session',
+              data: {'email': email, 'password': password, if (withCode) 'code': code},
+              options: Options(contentType: Headers.formUrlEncodedContentType)),
+          auth: withCode ? _AuthKind.passwordWithCode : _AuthKind.password);
+      return User.fromJson(_json(res) as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      // 確認コードが違うと Traccar は 400 を返す
+      if (withCode && e.statusCode == 400) {
+        throw ApiException('確認コードが違います。認証アプリに表示されている最新の 6 桁を入力してください', unauthorized: true, codeRequired: true);
+      }
+      rethrow;
+    }
   }
 
+  /// ログイン用トークンの有効期間。期限が近づいたら自動で作り直す
+  static const tokenLifetime = Duration(days: 90);
+
   /// 長期ログイン用トークンを発行（パスワードは保存しない）
-  Future<String> createToken({Duration validFor = const Duration(days: 365)}) async {
+  Future<String> createToken({Duration validFor = tokenLifetime}) async {
     final expiration = DateTime.now().toUtc().add(validFor).toIso8601String();
     final res = await _call(() => _dio.post('/api/session/token',
         data: {'expiration': expiration},
@@ -97,20 +143,31 @@ class TraccarClient {
     return User.fromJson(_json(res) as Map<String, dynamic>);
   }
 
-  Future<void> logout({String? token}) async {
+  /// トークンを無効にする（ログイン中のセッションが必要）。成功したら true
+  Future<bool> revokeToken(String token) async {
+    try {
+      await _dio.post('/api/session/token/revoke',
+          data: {'token': token}, options: Options(contentType: Headers.formUrlEncodedContentType));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// ログアウト。トークンをサーバー側でも無効にできたら true（通信できないときは false）
+  Future<bool> logout({String? token}) async {
+    var revoked = token == null;
     if (token != null) {
       // トークンの無効化にはログイン中のセッションが必要なので、切れていたら先につなぎ直す
       try {
         await loginWithToken(token);
       } catch (_) {}
-      try {
-        await _dio.post('/api/session/token/revoke',
-            data: {'token': token}, options: Options(contentType: Headers.formUrlEncodedContentType));
-      } catch (_) {}
+      revoked = await revokeToken(token);
     }
     try {
       await _dio.delete('/api/session');
     } catch (_) {}
+    return revoked;
   }
 
   // ---------- データ ----------
@@ -244,9 +301,22 @@ class TraccarClient {
   }
 
   /// コマンドを送る。true = すぐ送信、false = 端末が圏外などで保留（通信が戻ったら送られる）
-  Future<bool> sendCommand(int deviceId, String type, {Map<String, dynamic> attributes = const {}}) async {
-    final res = await _call(() => _dio.post('/api/commands/send', data: {'deviceId': deviceId, 'type': type, 'attributes': attributes}));
-    return res.statusCode != 202;
+  /// [noQueue] が true なら、発信機がオフラインのときに保留せず失敗させる（危険な操作用）。
+  /// 保留されると、通信が戻ったとき（多くはエンジンをかけた直後）に届いてしまうため
+  Future<bool> sendCommand(int deviceId, String type, {Map<String, dynamic> attributes = const {}, bool noQueue = false}) async {
+    try {
+      final res = await _call(() => _dio.post('/api/commands/send', data: {
+            'deviceId': deviceId,
+            'type': type,
+            'attributes': {...attributes, if (noQueue) 'noQueue': true},
+          }));
+      return res.statusCode != 202;
+    } on ApiException catch (e) {
+      if (noQueue && e.statusCode == 400) {
+        throw ApiException('発信機がオフラインのため送りませんでした。危険な操作は保留せず、発信機がオンラインのときだけ送ります', statusCode: 400);
+      }
+      rethrow;
+    }
   }
 
   /// コマンドの結果・保留中コマンドの送信の履歴
@@ -410,12 +480,17 @@ class TraccarClient {
   static ApiException _toApiException(DioException e, _AuthKind auth) {
     final code = e.response?.statusCode;
     if (code == 401) {
-      return ApiException(
-        auth == _AuthKind.password ? 'メールアドレスまたはパスワードが違います' : 'ログインの有効期限が切れました。もう一度ログインしてください',
-        unauthorized: true,
-      );
+      // 2 段階認証が有効なアカウント: Traccar は「WWW-Authenticate: TOTP」を返す
+      final needsCode = (e.response?.headers.value('www-authenticate') ?? '').toUpperCase().contains('TOTP');
+      final message = switch (auth) {
+        _AuthKind.password when needsCode => '確認コードを入力してください（2 段階認証）',
+        _AuthKind.password => 'メールアドレスまたはパスワードが違います',
+        _AuthKind.passwordWithCode => 'メールアドレスまたはパスワードが違います',
+        _ => 'ログインの有効期限が切れました。もう一度ログインしてください',
+      };
+      return ApiException(message, unauthorized: true, codeRequired: needsCode && auth == _AuthKind.password);
     }
-    if (code != null) return ApiException('サーバーエラー（$code）');
+    if (code != null) return ApiException('サーバーエラー（$code）', statusCode: code);
     if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
       return ApiException('サーバーが応答しません。URL とネットワークを確認してください');
     }
@@ -424,4 +499,16 @@ class TraccarClient {
 }
 
 /// 認証に関わるリクエストの種類（401 のときのメッセージとやり直しの判断に使う）
-enum _AuthKind { none, password, token }
+enum _AuthKind { none, password, passwordWithCode, token }
+
+/// http:// を使える範囲
+enum HttpPolicy {
+  /// 使えない（https:// のみ）
+  none,
+
+  /// PC 内（localhost・127.x・::1）だけ
+  loopback,
+
+  /// PC 内と LAN 内の IP アドレス（開発版のテスト用）
+  lan,
+}

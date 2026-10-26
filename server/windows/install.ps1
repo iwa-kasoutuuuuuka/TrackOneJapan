@@ -23,6 +23,10 @@
   設定の TraccarVersion がインストール済みの Traccar より古い場合でも、古いバージョンを入れ直します。
   （通常は誤操作を防ぐため中止します）
 
+.PARAMETER AllowUnverifiedDownload
+  ダウンロードした Traccar のハッシュ（SHA-256）を確認できなかった場合でも続けます。
+  （通常は config.psd1 の TraccarSha256 か GitHub のリリース情報と照合し、確認できなければ中止します）
+
 .EXAMPLE
   # 本番 PC（初回）
   powershell -ExecutionPolicy Bypass -File .\install.ps1
@@ -40,7 +44,8 @@ param(
     [switch] $TestMode,
     [switch] $DryRun,
     [string] $ConfigPath,
-    [switch] $AllowDowngrade
+    [switch] $AllowDowngrade,
+    [switch] $AllowUnverifiedDownload
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -84,6 +89,18 @@ if ($ConfigPath) {
     $copyConfig = $true
 }
 $cfg = Get-TOConfig -Path $ConfigPath
+# テスト用 PC の目印（PC 自身からのテスト送信用に OsmAnd 方式も受け付ける。本番では受け付けない）
+if ($TestMode) {
+    if (-not $DryRun) {
+        if (-not (Test-Path $TOStateDir)) { New-Item -ItemType Directory -Force $TOStateDir | Out-Null }
+        Set-Content -Path $TOTestModeFlag -Value 'install.ps1 -TestMode' -Encoding ASCII
+    }
+    if (-not (Test-TOProtocolEnabled $cfg 'osmand')) { $cfg.EnabledProtocols = "$($cfg.EnabledProtocols),osmand" }
+} elseif (Test-Path $TOTestModeFlag) {
+    if (-not $DryRun) { Remove-Item $TOTestModeFlag -Force }
+    $cfg = Get-TOConfig -Path $ConfigPath
+    if ($DryRun -and (Test-TOProtocolEnabled $cfg 'osmand')) { Write-TOLog '（実際の実行では、テスト用の目印を消して OsmAnd 方式を受け付けなくなります）' -Name $LogName }
+}
 $mode = '本番'
 if ($TestMode) { $mode = 'テスト' }
 Write-TOLog "=== TrackOneJapan サーバーのインストール開始（$mode モード）===" -Name $LogName
@@ -175,6 +192,8 @@ Step "PostgreSQL $($cfg.PostgresMajor) をインストール（未導入の場�
     }
     Set-TOSecret 'db-postgres-password-verified' 'yes'
     Set-TOServiceRecovery -ServiceName $pgService
+    # インストーラーがインストールした人に付けたデータフォルダの権限を外す（何度実行しても同じ）
+    Remove-TOPgDataUserAccess -Cfg $cfg
 }
 
 Step 'PostgreSQL を PC 内からの接続だけに制限' {
@@ -212,7 +231,7 @@ Step "Traccar $($cfg.TraccarVersion) をインストール（未導入・別バ�
         Write-TOLog "Traccar $installed は導入済み" -Name $LogName
     } else {
         # 先にダウンロードする（失敗しても Traccar は動いたまま）
-        $pkg = Get-TraccarPackage -Version $cfg.TraccarVersion
+        $pkg = Get-TraccarPackage -Version $cfg.TraccarVersion -ExpectedSha256 $cfg.TraccarSha256 -AllowUnverified:$AllowUnverifiedDownload
         try {
             if (Test-TODatabaseHasTraccar -Cfg $cfg) {
                 Write-TOLog '既存のデータがあるため、Traccar を入れ替える前にバックアップします' -Name $LogName
@@ -236,6 +255,8 @@ Step 'Traccar の設定（traccar.xml）とオリジナルアイコンを適用'
     Copy-Item -Path (Join-Path $PSScriptRoot 'trackone.ico') -Destination $TOIconPath -Force
     # Traccar は PostgreSQL の起動後に起動する
     Set-TOServiceRecovery -ServiceName $TraccarService -DependsOn $pgService
+    # 最小権限の専用アカウントで動かす（インストーラーが LocalSystem に戻すので毎回設定する）
+    Set-TOTraccarServiceAccount -Cfg $cfg
     if (Test-Path $TORestoreFailedFlag) {
         Write-TOLog "以前の復元失敗の目印を消して Traccar を起動します: $TORestoreFailedFlag" -Level WARN -Name $LogName
         Remove-Item $TORestoreFailedFlag -Force
@@ -245,7 +266,7 @@ Step 'Traccar の設定（traccar.xml）とオリジナルアイコンを適用'
 
 Step 'Traccar の起動を確認（初回はデータベース作成のため 1〜3 分かかります）' {
     if (-not (Wait-TraccarApi -Cfg $cfg -TimeoutSec 300)) {
-        throw "Traccar が起動しません。ログを確認してください: $TraccarDir\logs\tracker-server.log"
+        throw ("Traccar が起動しません。ログを確認してください: $TraccarDir\logs\tracker-server.log" + (Get-TOTraccarStartHint -Cfg $cfg))
     }
     if ((Test-TOProtocolEnabled $cfg 'gt06') -and -not (Test-TcpPort -Port $cfg.Gt06Port)) {
         Write-TOLog "GT06 ポート $($cfg.Gt06Port) が応答しません" -Level WARN -Name $LogName
@@ -256,7 +277,7 @@ Step 'Traccar の起動を確認（初回はデータベース作成のため 1�
 Step '管理画面にタイトル・テーマ色・ロゴを設定し、デスクトップにショートカットを作成' {
     Install-TOBranding -Cfg $cfg -SourceDir $PSScriptRoot
     Restart-TOService -Name $TraccarService
-    if (-not (Wait-TraccarApi -Cfg $cfg -TimeoutSec 300)) { throw 'Traccar の再起動後に応答がありません。' }
+    if (-not (Wait-TraccarApi -Cfg $cfg -TimeoutSec 300)) { throw ('Traccar の再起動後に応答がありません。' + (Get-TOTraccarStartHint -Cfg $cfg)) }
     New-TOShortcut -Cfg $cfg
 }
 
@@ -266,14 +287,18 @@ Step '管理画面にタイトル・テーマ色・ロゴを設定し、デス�
 if ($TestMode) {
     Write-TOLog 'テストモードのため、電源・Windows Update・ファイアウォール・タスク・Tailscale の設定は行いません' -Name $LogName
 } else {
-    Step 'ファイアウォール: 発信機の受信ポートを許可' {
+    Step 'ファイアウォール: 発信機の受信ポートを許可（使う通信方式だけ）' {
         $rules = @(
-            @{ Name = 'TrackOne GT06';   Port = $cfg.Gt06Port;   Profile = 'Any' },
-            @{ Name = 'TrackOne OsmAnd'; Port = $cfg.OsmAndPort; Profile = 'Private' }   # テスト送信は LAN 内だけ
+            @{ Name = 'TrackOne GT06';   Protocol = 'gt06';   Port = $cfg.Gt06Port;   Profile = 'Any' },
+            @{ Name = 'TrackOne OsmAnd'; Protocol = 'osmand'; Port = $cfg.OsmAndPort; Profile = 'Private' }   # テスト送信は LAN 内だけ
         )
         foreach ($r in $rules) {
             Get-NetFirewallRule -DisplayName $r.Name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-            New-NetFirewallRule -DisplayName $r.Name -Direction Inbound -Protocol TCP -LocalPort $r.Port -Action Allow -Profile $r.Profile | Out-Null
+            if (Test-TOProtocolEnabled $cfg $r.Protocol) {
+                New-NetFirewallRule -DisplayName $r.Name -Direction Inbound -Protocol TCP -LocalPort $r.Port -Action Allow -Profile $r.Profile | Out-Null
+            } else {
+                Write-TOLog "$($r.Name): 使わない通信方式のため、受信を許可しません" -Name $LogName
+            }
         }
     }
 
@@ -349,6 +374,7 @@ $next = @"
 次にやること:
   1. デスクトップの「TrackOne 管理画面」（または http://localhost:$($cfg.WebPort)）を開き、最初のアカウントを登録
      （最初のアカウントが管理者になります。2 人目以降は自由に登録できない設定が初期状態です）
+     管理者のパスワードは長く（16 文字以上）し、2 段階認証（TOTP）も設定してください（docs/04_サーバー構築手順.md 手順5）
   2. 端末を追加（名前と IMEI）
 "@
 if (-not $TestMode) {

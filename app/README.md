@@ -64,7 +64,7 @@ adb reverse tcp:8082 tcp:8082  # スマホの localhost:8082 → PC の 8082
 アプリのログイン画面で、サーバー URL に `http://localhost:8082` を入力します。
 （`http://` は開発用ビルドでのみ使えます。リリース版は `https://` のみ）
 
-位置の受信テスト（PC から送信。地図がすぐに動けば成功）:
+位置の受信テスト（PC から送信。地図がすぐに動けば成功。OsmAnd 方式は `install.ps1 -TestMode` の PC、または `EnabledProtocols` に `osmand` を入れたときだけ有効）:
 
 ```powershell
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()

@@ -20,6 +20,15 @@ void main() {
       expect(types.first, 'positionSingle');
       expect(types.sublist(types.length - 2).toSet(), {'engineStop', 'factoryReset'});
     });
+    test('一覧にない種類と、危険に見える任意のコマンドは危険として扱う', () {
+      expect(describeCommand('outputControl').danger, isTrue);
+      expect(isDangerousCommand('custom', text: 'STATUS#'), isFalse);
+      expect(isDangerousCommand('custom', text: 'relay,1#'), isTrue);
+      expect(isDangerousCommand('custom', text: 'DYD,000000#'), isTrue);
+      expect(isDangerousCommand('custom', text: 'FACTORY#'), isTrue);
+      expect(isDangerousCommand('positionSingle'), isFalse);
+      expect(isDangerousCommand('engineStop'), isTrue);
+    });
     test('送るときの属性', () {
       expect(commandAttributes('custom', text: 'STATUS#'), {'data': 'STATUS#'});
       expect(commandAttributes('positionPeriodic', seconds: 30), {'frequency': 30});

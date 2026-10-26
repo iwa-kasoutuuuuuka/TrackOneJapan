@@ -17,6 +17,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _server = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _code = TextEditingController();
+  bool _needsCode = false; // 2 段階認証が有効なアカウント
   bool _busy = false;
   bool _showPassword = false;
   String? _error;
@@ -37,6 +39,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _server.dispose();
     _email.dispose();
     _password.dispose();
+    _code.dispose();
     super.dispose();
   }
 
@@ -48,9 +51,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).login(server: _server.text, email: _email.text, password: _password.text);
+      await ref.read(authProvider.notifier).login(
+            server: _server.text,
+            email: _email.text,
+            password: _password.text,
+            code: _needsCode ? _code.text : null,
+          );
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      setState(() {
+        _error = e.message;
+        if (e.codeRequired) _needsCode = true; // 確認コードの欄を出す
+      });
     } catch (e) {
       setState(() => _error = 'ログインできませんでした（$e）');
     } finally {
@@ -121,6 +132,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     validator: (v) => (v == null || v.isEmpty) ? 'パスワードを入力してください' : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
+                  if (_needsCode) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _code,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      autofillHints: const [AutofillHints.oneTimeCode],
+                      decoration: const InputDecoration(
+                        labelText: '確認コード（2 段階認証）',
+                        helperText: '認証アプリ（Google Authenticator など）に表示される 6 桁の数字',
+                        helperMaxLines: 2,
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? '確認コードを入力してください' : null,
+                      onFieldSubmitted: (_) => _submit(),
+                    ),
+                  ],
                   if (_error != null) ...[
                     const SizedBox(height: 14),
                     Container(

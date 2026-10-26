@@ -22,6 +22,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:trackone_japan/app.dart';
+import 'package:trackone_japan/core/state/auth.dart';
 import 'package:trackone_japan/features/commands/commands_page.dart';
 import 'package:trackone_japan/features/device/device_edit_page.dart';
 import 'package:trackone_japan/features/home/device_card.dart';
@@ -292,6 +293,11 @@ void main() {
     await pumpUntil(tester, find.textContaining(RegExp(r'^TrackOne Japan \d+\.\d+\.\d+')));
     expect(find.text('http://localhost:8082'), findsWidgets);
     expect(tester.takeException(), isNull);
+
+    // 14) 後片付け: ログアウトして、テストで作ったログイン用の鍵をサーバー側でも無効にする
+    final container = ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
+    final revoked = await tester.runAsync(() => container.read(authProvider.notifier).logout());
+    expect(revoked, isTrue);
   });
 }
 

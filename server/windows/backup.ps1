@@ -48,12 +48,24 @@ try {
 }
 
 # 追加のコピー先（ドライブが外れている等で失敗しても、ここで止めない）
+# このスクリプトは SYSTEM で動くので、コピー先に一般ユーザーが仕掛けたジャンクション・シンボリックリンクがあれば使わない
+# （たどった先の別の場所に書き込んだり、古いファイルの削除で消したりしないように）
 $copyTo = [string]$cfg.BackupCopyTo
 if ($copyTo) {
     try {
         if (-not (Test-Path $copyTo)) { New-Item -ItemType Directory -Force $copyTo | Out-Null }
-        Copy-Item $dump $copyTo -Force
-        Write-TOLog "コピー: $copyTo" -Name $LogName
+        $link = Find-TOLinkInPath -Path $copyTo
+        if ($link) { throw "コピー先（またはその途中のフォルダ）がジャンクション・シンボリックリンクのため使いません: $link（普通のフォルダを指定してください）" }
+        $dest = Join-Path $copyTo (Split-Path $dump -Leaf)
+        if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Force }
+        Copy-Item -LiteralPath $dump -Destination $dest -Force
+        # コピーしたファイルはコピー先フォルダの権限を引き継ぐ（D:\ の既定では誰でも読める）ので、管理者と SYSTEM だけにする
+        try {
+            Protect-TOFile -Path $dest
+        } catch {
+            Write-TOLog "コピーしたファイルのアクセス権を設定できませんでした（FAT32・exFAT の USB メモリなど、アクセス権のないドライブでは誰でも読めます）: $($_.Exception.Message)" -Level WARN -Name $LogName
+        }
+        Write-TOLog "コピー: $dest" -Name $LogName
     } catch {
         Write-TOLog "追加のコピー先に保存できませんでした（ドライブの接続を確認してください）: $copyTo / $($_.Exception.Message)" -Level WARN -Name $LogName
     }
@@ -68,12 +80,14 @@ if ($NoPrune) {
 try {
     $limit = (Get-Date).AddDays(-[int]$cfg.BackupKeepDays)
     $targets = @(Get-TOBackupFiles -Path $TOBackupDir | Where-Object { $_.Stamp -lt $limit })
-    if ($copyTo -and (Test-Path $copyTo)) {
-        # コピー先は TrackOne 以外のファイルもあり得るので、同じ名前の形式の .dump だけを対象にする
-        $targets += @(Get-TOBackupFiles -Path $copyTo -Kind 'traccar' -Extension 'dump' | Where-Object { $_.Stamp -lt $limit })
+    if ($copyTo -and (Test-Path $copyTo) -and -not (Find-TOLinkInPath -Path $copyTo)) {
+        # コピー先は TrackOne 以外のファイルもあり得るので、同じ名前の形式の .dump だけを対象にする（リンクは除く）
+        $targets += @(Get-TOBackupFiles -Path $copyTo -Kind 'traccar' -Extension 'dump' | Where-Object {
+            $_.Stamp -lt $limit -and -not ($_.File.PSObject.Properties['LinkType'] -and $_.File.LinkType)
+        })
     }
     foreach ($t in $targets) {
-        Remove-Item $t.File.FullName -Force
+        Remove-Item -LiteralPath $t.File.FullName -Force
         Write-TOLog "古いバックアップを削除: $($t.File.FullName)" -Name $LogName
     }
 } catch {

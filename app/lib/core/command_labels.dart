@@ -36,8 +36,17 @@ const _labels = <String, CommandInfo>{
   'message': CommandInfo('メッセージを送る', '画面付きの発信機に文字を表示します', Icons.message_outlined, param: CommandParam.text),
 };
 
+/// 一覧にない種類は、何が起きるかわからないので危険なものとして扱う（2 回確認・保留しない）
 CommandInfo describeCommand(String type) =>
-    _labels[type] ?? CommandInfo(type, 'この種類のコマンドは、管理画面での利用をおすすめします', Icons.tune);
+    _labels[type] ?? CommandInfo(type, 'この種類のコマンドの内容はアプリではわかりません。何が起きるか確認してから送ってください', Icons.tune, danger: true);
+
+/// 「任意のコマンド」の文面が、エンジン停止・電源オフ・初期化などに見えるか（GT06 系の代表的な文面）
+bool looksDangerousCustom(String text) =>
+    RegExp(r'RELAY|DYD|CUT|STOPENGINE|POWEROFF|POWER,?OFF|FACTORY|FORMAT', caseSensitive: false).hasMatch(text);
+
+/// 危険な操作として扱うか（任意のコマンドは文面で判断）
+bool isDangerousCommand(String type, {String? text}) =>
+    describeCommand(type).danger || (type == 'custom' && looksDangerousCustom(text ?? ''));
 
 /// 一覧に出す順番（よく使うもの・安全なものを先に、危険なものは最後）
 int commandOrder(String type) {

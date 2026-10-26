@@ -92,6 +92,14 @@ class PhoneNotifier {
     }
   }
 
+  /// 表示中の通知をすべて消す（ログアウトしたとき）
+  Future<void> cancelAll() async {
+    if (!_ready) return;
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {}
+  }
+
   Future<void> show({required int eventId, required String title, required String body}) async {
     await init();
     if (!_ready) return;
@@ -117,6 +125,8 @@ class PhoneNotifier {
           priority: Priority.high,
           color: const Color(0xFF1F4A85),
           category: AndroidNotificationCategory.event,
+          // ロック画面で内容を隠す設定のスマホでは、端末名やアラームの内容を出さない
+          visibility: NotificationVisibility.private,
         ),
       ),
     );

@@ -55,8 +55,18 @@ void main() {
       expect(TraccarClient.isAllowedUrl('http://172.40.0.5'), isFalse);
       expect(TraccarClient.isAllowedUrl('ftp://localhost'), isFalse);
       // Android の配布版では http:// は使えない
-      expect(TraccarClient.isAllowedUrl('http://localhost:8082', allowHttp: false), isFalse);
-      expect(TraccarClient.isAllowedUrl('https://tracker.example.ts.net', allowHttp: false), isTrue);
+      expect(TraccarClient.isAllowedUrl('http://localhost:8082', policy: HttpPolicy.none), isFalse);
+      expect(TraccarClient.isAllowedUrl('https://tracker.example.ts.net', policy: HttpPolicy.none), isTrue);
+      // 配布版の Windows: PC 内だけ。LAN 内の http:// には鍵を送らない
+      expect(TraccarClient.isAllowedUrl('http://localhost:8082', policy: HttpPolicy.loopback), isTrue);
+      expect(TraccarClient.isAllowedUrl('http://127.0.0.1:8082', policy: HttpPolicy.loopback), isTrue);
+      expect(TraccarClient.isAllowedUrl('http://[::1]:8082', policy: HttpPolicy.loopback), isTrue);
+      expect(TraccarClient.isAllowedUrl('http://192.168.1.20:8082', policy: HttpPolicy.loopback), isFalse);
+      expect(TraccarClient.isAllowedUrl('http://10.0.0.5:8082', policy: HttpPolicy.loopback), isFalse);
+      // ユーザー名・パスワード入りや ?・# 付きは受け付けない
+      expect(TraccarClient.isAllowedUrl('https://user:pass@tracker.example.ts.net'), isFalse);
+      expect(TraccarClient.isAllowedUrl('https://tracker.example.ts.net/?a=1'), isFalse);
+      expect(TraccarClient.isAllowedUrl('https://tracker.example.ts.net/#x'), isFalse);
     });
   });
 

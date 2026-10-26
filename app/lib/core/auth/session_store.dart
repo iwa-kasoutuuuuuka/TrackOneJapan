@@ -10,23 +10,52 @@ class SessionStore {
   static const _kToken = 'token';
   static const _kEmail = 'email';
   static const _kMapType = 'map_type';
+  static const _kTokenExpires = 'token_expires';
 
-  Future<({String? server, String? token, String? email})> read() async {
+  Future<({String? server, String? token, String? email, DateTime? tokenExpires})> read() async {
+    final expires = await _s.read(key: _kTokenExpires);
     return (
       server: await _s.read(key: _kServer),
       token: await _s.read(key: _kToken),
       email: await _s.read(key: _kEmail),
+      tokenExpires: expires == null ? null : DateTime.tryParse(expires),
     );
   }
 
-  Future<void> save({required String server, required String token, required String email}) async {
+  Future<void> save({required String server, required String token, required String email, required DateTime tokenExpires}) async {
     await _s.write(key: _kServer, value: server);
     await _s.write(key: _kToken, value: token);
     await _s.write(key: _kEmail, value: email);
+    await _s.write(key: _kTokenExpires, value: tokenExpires.toUtc().toIso8601String());
+  }
+
+  static const _kPendingRevoke = 'pending_revoke';
+
+  /// 通信できずにサーバー側で無効にできなかったトークン（次にログインしたときに無効にする）
+  Future<List<({String server, String token})>> readPendingRevokes() async {
+    final v = await _s.read(key: _kPendingRevoke);
+    if (v == null || v.isEmpty) return const [];
+    return [
+      for (final line in v.split('\n'))
+        if (line.contains('\t')) (server: line.split('\t')[0], token: line.split('\t')[1]),
+    ];
+  }
+
+  Future<void> savePendingRevokes(List<({String server, String token})> items) => items.isEmpty
+      ? _s.delete(key: _kPendingRevoke)
+      : _s.write(key: _kPendingRevoke, value: items.map((e) => '${e.server}\t${e.token}').join('\n'));
+
+  /// トークンを作り直したとき
+  Future<void> saveToken(String token, DateTime tokenExpires) async {
+    await _s.write(key: _kToken, value: token);
+    await _s.write(key: _kTokenExpires, value: tokenExpires.toUtc().toIso8601String());
   }
 
   /// ログアウト時はトークンだけ消す（次回のために URL とメールは残す）
-  Future<void> clearToken() => _s.delete(key: _kToken);
+  Future<void> clearToken() async {
+    await _s.delete(key: _kToken);
+    await _s.delete(key: _kTokenExpires);
+  }
 
   Future<String?> readMapType() => _s.read(key: _kMapType);
   Future<void> saveMapType(String value) => _s.write(key: _kMapType, value: value);

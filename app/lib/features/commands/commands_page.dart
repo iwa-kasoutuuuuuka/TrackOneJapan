@@ -77,7 +77,7 @@ class _CommandsPageState extends ConsumerState<CommandsPage> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: context.pal.warnBg, borderRadius: BorderRadius.circular(12)),
-              child: const Text('発信機はオフラインです。送ったコマンドは保留され、通信が戻ったときに送られます。', style: TextStyle(fontSize: 12.5)),
+              child: const Text('発信機はオフラインです。送ったコマンドは保留され、通信が戻ったときに送られます（エンジン停止などの危険な操作は保留せず、送れません）。', style: TextStyle(fontSize: 12.5)),
             ),
           if (_error != null)
             Padding(padding: const EdgeInsets.all(16), child: Text(_error!, style: const TextStyle(color: AppColors.red)))
@@ -200,14 +200,19 @@ class _CommandSheetState extends ConsumerState<_CommandSheet> {
     super.dispose();
   }
 
-  Future<bool> _confirmDanger(CommandInfo info) async {
+  Future<bool> _confirmDanger(CommandInfo info, {bool customLooksDangerous = false}) async {
     for (final step in [1, 2]) {
       final ok = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.warning_amber_rounded, color: AppColors.red, size: 36),
           title: Text(step == 1 ? '「${info.label}」を送りますか？' : '本当に送りますか？（最終確認）'),
-          content: Text(step == 1 ? info.description : '「${widget.deviceName}」に「${info.label}」を送ります。車が止まっていることを確認してください。'),
+          content: Text(step == 1
+              ? (customLooksDangerous
+                  ? '「${_text.text.trim()}」は、エンジン停止・電源オフ・初期化などのコマンドに見えます。走行中に届くと大変危険です。'
+                  : info.description)
+              : '「${widget.deviceName}」に「${info.label}」を送ります。車が止まっていることを確認してください。\n'
+                  '発信機がオフラインのときは送らずに中止します（後から届くことはありません）。'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('やめる')),
             FilledButton(
@@ -232,15 +237,21 @@ class _CommandSheetState extends ConsumerState<_CommandSheet> {
     final sec = int.tryParse(_seconds.text.trim());
     if (info.param == CommandParam.seconds && (sec == null || sec < 10 || sec > 86400)) problem = '10〜86400 秒で入力してください';
     if (info.param == CommandParam.sos && _phone.text.trim().isEmpty) problem = '電話番号を入力してください';
+    final danger = isDangerousCommand(widget.type, text: _text.text.trim());
+    final online = ref.read(trackingProvider).devices[widget.deviceId]?.isOnline ?? false;
+    if (problem == null && danger && !online) {
+      problem = '発信機がオフラインのため送れません。危険な操作は、後から届かないよう、発信機がオンラインのときだけ送れます';
+    }
     setState(() => _problem = problem);
     if (problem != null) return;
-    if (info.danger && !await _confirmDanger(info)) return;
+    if (danger && !await _confirmDanger(info, customLooksDangerous: !info.danger)) return;
     if (!mounted) return;
     setState(() => _sending = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final now = await client.sendCommand(widget.deviceId, widget.type,
-          attributes: commandAttributes(widget.type, text: _text.text.trim(), seconds: sec, sosPhone: _phone.text.trim()));
+          attributes: commandAttributes(widget.type, text: _text.text.trim(), seconds: sec, sosPhone: _phone.text.trim()),
+          noQueue: danger);
       if (!mounted) return;
       Navigator.of(context).pop(true);
       messenger.showSnackBar(SnackBar(
